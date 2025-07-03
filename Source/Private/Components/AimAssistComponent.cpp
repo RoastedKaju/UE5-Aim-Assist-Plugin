@@ -2,10 +2,12 @@
 
 
 #include "Components/AimAssistComponent.h"
+#include "Components/SceneComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "HUD/AimAssistHUD.h"
+#include "Interfaces/AimTargetInterface.h"
 
 // Sets default values for this component's properties
 UAimAssistComponent::UAimAssistComponent()
@@ -15,6 +17,7 @@ UAimAssistComponent::UAimAssistComponent()
 
 	OverlapBoxHalfSize = FVector(50.0f, 500.0f, 500.0f);
 	OverlapRange = 1000.0f;
+	ObjectTypesToQuery = { ECC_WorldDynamic, ECC_Pawn };
 
 	FrictionRadius = 100.0f;
 	CurrentAimFriction = 0.0f;
@@ -42,6 +45,12 @@ void UAimAssistComponent::BeginPlay()
 	// Get HUD for drawing debug elements on screen
 	DebugHUD = Cast<AAimAssistHUD>(OwningPlayerController->GetHUD());
 
+	// Setup the object query params
+	for (const auto& ObjectType : ObjectTypesToQuery)
+	{
+		ObjectQueryParams.AddObjectTypesToQuery(ObjectType);
+	}
+
 }
 
 // Called every frame
@@ -58,7 +67,7 @@ void UAimAssistComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 	const bool bCenterMostTargetFound = FindCenterMostTarget(AimTargetList, OutCenterMostTarget);
 	if (bCenterMostTargetFound)
 	{
-		UKismetSystemLibrary::DrawDebugString(GetWorld(), OutCenterMostTarget.Actor->GetActorLocation() + (FVector::UpVector * 20.0f), "Active Target", nullptr, FLinearColor::Green);
+		UKismetSystemLibrary::DrawDebugString(GetWorld(), OutCenterMostTarget.HitComponent->GetComponentLocation() + (FVector::UpVector * 20.0f), "Active Target", nullptr, FLinearColor::Green);
 	}
 
 	// Calculate assist modifiers
@@ -90,42 +99,54 @@ void UAimAssistComponent::GetActorsInAimZone()
 	const FVector StartLoc = OwningPlayerCameraManager->GetCameraLocation();
 	const FVector CameraForward = OwningPlayerCameraManager->GetCameraRotation().Vector();
 	const FVector EndLoc = StartLoc + (CameraForward * OverlapRange);
-	FCollisionQueryParams QueryParams;
+	FCollisionQueryParams QueryParams; // Collision query param
 	QueryParams.bTraceComplex = false;
 	QueryParams.AddIgnoredActor(OwningPlayerController->GetPawn()); // Ignore controlled pawn
-	GetWorld()->SweepMultiByChannel(
+	GetWorld()->SweepMultiByObjectType(
 		OutHits,
 		StartLoc, EndLoc,
 		OwningPlayerCameraManager->GetCameraRotation().Quaternion(),
-		ECC_GameTraceChannel1,
+		ObjectQueryParams,
 		FCollisionShape::MakeBox(OverlapBoxHalfSize),
 		QueryParams);
 
 	for (const auto& Hit : OutHits)
 	{
-		FVector2D HitActorScreenLoc;
-		if (OwningPlayerController->ProjectWorldLocationToScreen(Hit.GetActor()->GetActorLocation(), HitActorScreenLoc, true))
+		// Skip if the actor does not implement the UAimTargetInterface
+		if (!Hit.GetActor()->GetClass()->ImplementsInterface(UAimTargetInterface::StaticClass()))
+			continue;
+
+		// Get all the hit target components on actor
+		const TArray<USceneComponent*> AimTargetComps = IAimTargetInterface::Execute_GetAimTargets(Hit.GetActor());
+		for (const auto& TargetComp : AimTargetComps)
 		{
-			auto DistanceFromCenter = FVector2D::DistSquared(HitActorScreenLoc, ScreenCenter);
-			// Target Data
-			FAimTargetData TargetData;
-			TargetData.Actor = Hit.GetActor();
-			TargetData.ScreenPosition = HitActorScreenLoc;
-			TargetData.DistanceSqFromScreenCenter = DistanceFromCenter;
+			const FVector CompWorldLoc = TargetComp->GetComponentLocation();
+			
+			// TODO: Visiblity trace from camera to hit component
 
-			// Get all the targets inside the largest aim zone
-			if (DistanceFromCenter <= FMath::Square(LargestAimAssistZone))
+			FVector2D HitActorScreenLoc;
+			if (OwningPlayerController->ProjectWorldLocationToScreen(CompWorldLoc, HitActorScreenLoc, true))
 			{
-				UKismetSystemLibrary::DrawDebugLine(GetWorld(), StartLoc, Hit.GetActor()->GetActorLocation(), FLinearColor::Green);
-				UKismetSystemLibrary::DrawDebugString(GetWorld(), Hit.GetActor()->GetActorLocation(), "Target");
+				auto DistanceFromCenter = FVector2D::DistSquared(HitActorScreenLoc, ScreenCenter);
+				// Target Data
+				FAimTargetData TargetData;
+				TargetData.Actor = Hit.GetActor();
+				TargetData.HitComponent = TargetComp;
+				TargetData.ScreenPosition = HitActorScreenLoc;
+				TargetData.DistanceSqFromScreenCenter = DistanceFromCenter;
 
-				// Add the target to list
-				AimTargetList.Add(TargetData);
+				// Get all the targets inside the largest aim zone
+				if (DistanceFromCenter <= FMath::Square(LargestAimAssistZone))
+				{
+					UKismetSystemLibrary::DrawDebugLine(GetWorld(), StartLoc, CompWorldLoc, FLinearColor::Green);
+					UKismetSystemLibrary::DrawDebugString(GetWorld(), CompWorldLoc, "Target");
+
+					// Add the target to list
+					AimTargetList.Add(TargetData);
+				}
 			}
 		}
-
 	}
-
 }
 
 bool UAimAssistComponent::FindCenterMostTarget(TArray<FAimTargetData> Targets, FAimTargetData& OutTargetData)
@@ -138,7 +159,7 @@ bool UAimAssistComponent::FindCenterMostTarget(TArray<FAimTargetData> Targets, F
 	// Loop over the target list and do dot product
 	for (auto& Target : Targets)
 	{
-		const FVector TargetDirection = (Target.Actor->GetActorLocation() - OwningPlayerCameraManager->GetCameraLocation()).GetSafeNormal();
+		const FVector TargetDirection = (Target.HitComponent->GetComponentLocation() - OwningPlayerCameraManager->GetCameraLocation()).GetSafeNormal();
 		const FVector CameraDirection = OwningPlayerCameraManager->GetCameraRotation().Vector().GetSafeNormal();
 		Target.DotProduct = FVector::DotProduct(CameraDirection, TargetDirection);
 

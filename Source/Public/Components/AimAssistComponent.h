@@ -9,14 +9,18 @@
 class APlayerController;
 class APlayerCameraManager;
 class AAimAssistHUD;
+class USceneComponent;
 
 USTRUCT(BlueprintType)
 struct AIMASSIST_API FAimTargetData
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(BlueprintReadWrite)
 	TObjectPtr<AActor> Actor;
+
+	UPROPERTY(BlueprintReadWrite)
+	TObjectPtr<USceneComponent> HitComponent;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FVector2D ScreenPosition;
@@ -85,6 +89,11 @@ protected:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist")
 	float OverlapRange;
+
+	UPROPERTY(EditDefaultsOnly, Category = "AimAssist")
+	TArray<TEnumAsByte<ECollisionChannel>> ObjectTypesToQuery;
+
+	FCollisionObjectQueryParams ObjectQueryParams;
 
 	/** Friction section */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Friction")
