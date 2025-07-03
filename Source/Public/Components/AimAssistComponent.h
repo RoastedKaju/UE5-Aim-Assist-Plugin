@@ -65,6 +65,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "AimAssist|Friction")
 	void CalculateFriction(FAimTargetData Target);
 
+	UFUNCTION(BlueprintCallable, Category = "AimAssist|Friction")
+	void ApplyFriction();
+
+	UFUNCTION(BlueprintCallable, Category = "AimAssist|Magnetism")
+	void CalculateMagnetism(FAimTargetData Target);
+
+	UFUNCTION(BlueprintCallable, Category = "AimAssist|Magnetism")
+	void ApplyMagnetism(float DeltaTime, const FVector& TargetLocation, const FVector& TargetDirection);
+
 	UFUNCTION()
 	void RequestDebugAimAssistCircles();
 
@@ -97,14 +106,23 @@ protected:
 
 	/** Friction section */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Friction")
+	bool bEnableFriction;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Friction")
 	float FrictionRadius;
 
 	UPROPERTY(BlueprintReadOnly, Category = "AimAssist|Friction")
 	float CurrentAimFriction;
 
-	/** Stickness section */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Stickness")
-	float SticknessRadius;
+	/** Magnetism section */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Magnetism")
+	bool bEnableMagnetism;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Magnetism")
+	float MagnetismRadius;
+
+	UPROPERTY(BlueprintReadOnly, Category = "AimAssist|Magnetism")
+	float CurrentAimMagnetism;
 
 	/** Debug section */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Debug")
