@@ -65,8 +65,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "AimAssist|Friction")
 	void CalculateFriction(FAimTargetData Target);
 
-	UFUNCTION(BlueprintCallable, Category = "AimAssist|Friction")
-	void ApplyFriction();
+	UFUNCTION(BlueprintPure, Category = "AimAssist|Friction")
+	float GetCurrentAimFriction();
 
 	UFUNCTION(BlueprintCallable, Category = "AimAssist|Magnetism")
 	void CalculateMagnetism(FAimTargetData Target);
@@ -99,10 +99,13 @@ protected:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist")
 	float OverlapRange;
 
+	/** Collision query */
 	UPROPERTY(EditDefaultsOnly, Category = "AimAssist")
 	TArray<TEnumAsByte<ECollisionChannel>> ObjectTypesToQuery;
 
+	// Container for collision object types
 	FCollisionObjectQueryParams ObjectQueryParams;
+
 
 	/** Friction section */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Friction")
@@ -111,7 +114,10 @@ protected:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Friction")
 	float FrictionRadius;
 
-	UPROPERTY(BlueprintReadOnly, Category = "AimAssist|Friction")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Friction")
+	TObjectPtr<UCurveFloat> FrictionCurve;
+
+	UPROPERTY()
 	float CurrentAimFriction;
 
 	/** Magnetism section */
@@ -120,6 +126,9 @@ protected:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Magnetism")
 	float MagnetismRadius;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Magnetism")
+	TObjectPtr<UCurveFloat> MagnetismCurve;
 
 	UPROPERTY(BlueprintReadOnly, Category = "AimAssist|Magnetism")
 	float CurrentAimMagnetism;

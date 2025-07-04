@@ -35,8 +35,7 @@ void UAimAssistComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	SetComponentTickEnabled(false);
-	bAimAssistEnabled = false;
+	EnableAimAssist(false);
 
 	// Cache player controller and camera manager
 	OwningPlayerController = Cast<APlayerController>(GetOwner());
@@ -45,21 +44,24 @@ void UAimAssistComponent::BeginPlay()
 	OwningPlayerCameraManager = OwningPlayerController->PlayerCameraManager;
 	check(OwningPlayerCameraManager);
 
-	// Get HUD for drawing debug elements on screen
-	DebugHUD = Cast<AAimAssistHUD>(OwningPlayerController->GetHUD());
-
 	// Setup the object query params
 	for (const auto& ObjectType : ObjectTypesToQuery)
 	{
 		ObjectQueryParams.AddObjectTypesToQuery(ObjectType);
 	}
 
+	// Get HUD for drawing debug elements on screen
+	DebugHUD = Cast<AAimAssistHUD>(OwningPlayerController->GetHUD());
 }
 
 // Called every frame
 void UAimAssistComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	// Ensure that controller is valid all the time and is locally controlled.
+	if (!IsValid(OwningPlayerController) || !OwningPlayerController->IsLocalController())
+		return;
 
 	// Debug draw shapes
 	RequestDebugAimAssistCircles();
@@ -77,7 +79,7 @@ void UAimAssistComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 	{
 		UKismetSystemLibrary::DrawDebugString(GetWorld(), OutCenterMostTarget.HitComponent->GetComponentLocation() + (FVector::UpVector * 20.0f), "Active Target", nullptr, FLinearColor::Green);
 		const FVector CurrentTargetDirection = (OutCenterMostTarget.HitComponent->GetComponentLocation() - OwningPlayerCameraManager->GetCameraLocation()).GetSafeNormal();
-		
+
 		// Apply modifiers
 		ApplyMagnetism(DeltaTime, OutCenterMostTarget.HitComponent->GetComponentLocation(), CurrentTargetDirection);
 	}
@@ -192,16 +194,20 @@ void UAimAssistComponent::CalculateFriction(FAimTargetData Target)
 
 	if (Target.DistanceSqFromScreenCenter < FrictionRadiusSq)
 	{
-		// Calculate strength depending on how close we are to the center
-		float FrictionStrength = 1.0f - (Target.DistanceSqFromScreenCenter / FrictionRadiusSq);
+		// Calculate scale depending on how close we are to the center
+		float FrictionScale = 1.0f - (Target.DistanceSqFromScreenCenter / FrictionRadiusSq);
 		// Clamp
-		FrictionStrength = FMath::Clamp(FrictionStrength, 0.0f, 1.0f);
+		FrictionScale = FMath::Clamp(FrictionScale, 0.0f, 1.0f);
 
-		GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, FString::Printf(TEXT("Friction Rate For Active Target : %.2f"), FrictionStrength));
+		// Get the value from curve
+		float FrictionCurveValue;
+		if (FrictionCurve)
+			FrictionCurveValue = FrictionCurve->GetFloatValue(FrictionScale);
+		else
+			FrictionCurveValue = 0.75f; // Default value in case curve not found
+		
 
-		// TODO: Add graph curve for better control
-
-		CurrentAimFriction = FrictionStrength;
+		CurrentAimFriction = FrictionCurveValue;
 		return;
 	}
 
@@ -209,9 +215,9 @@ void UAimAssistComponent::CalculateFriction(FAimTargetData Target)
 	CurrentAimFriction = 0.0f;
 }
 
-void UAimAssistComponent::ApplyFriction()
+float UAimAssistComponent::GetCurrentAimFriction()
 {
-
+	return 1.0f - CurrentAimFriction;
 }
 
 void UAimAssistComponent::CalculateMagnetism(FAimTargetData Target)
@@ -224,15 +230,20 @@ void UAimAssistComponent::CalculateMagnetism(FAimTargetData Target)
 	if (Target.DistanceSqFromScreenCenter < MagnetismRadiusSq)
 	{
 		// Magnetic factor depending on how close to the center of screen
-		float MagnetismStrength = 1.0f - (Target.DistanceSqFromScreenCenter / MagnetismRadiusSq);
+		float MagnetismScale = 1.0f - (Target.DistanceSqFromScreenCenter / MagnetismRadiusSq);
 		// Clamp
-		MagnetismStrength = FMath::Clamp(MagnetismStrength, 0.0f, 1.0f);
+		MagnetismScale = FMath::Clamp(MagnetismScale, 0.0f, 1.0f);
 
-		GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, FString::Printf(TEXT("Magnetism Rate For Active Target : %.2f"), MagnetismStrength));
+		GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, FString::Printf(TEXT("Magnetism Rate For Active Target : %.2f"), MagnetismScale));
 
-		// TODO: Add graph curve for better control
+		// Get the value from curve
+		float MagnetismCurveValue;
+		if (MagnetismCurve)
+			MagnetismCurveValue = MagnetismCurve->GetFloatValue(MagnetismScale);
+		else
+			MagnetismCurveValue = 0.5f; // default value
 
-		CurrentAimMagnetism = MagnetismStrength;
+		CurrentAimMagnetism = MagnetismCurveValue;
 		return;
 	}
 
@@ -247,10 +258,10 @@ void UAimAssistComponent::ApplyMagnetism(float DeltaTime, const FVector& TargetL
 	// Get current control rotation
 	FRotator CurrentRotation = OwningPlayerController->GetControlRotation();
 	FRotator TargetRotation = TargetDirection.Rotation();
-	
+
 	// TODO: This is where you should use the values from curve
 	float RotationSpeed = FMath::Lerp(1.0f, 5.0f, CurrentAimMagnetism);
-	
+
 	FRotator NewRotation = FMath::RInterpTo(
 		CurrentRotation,
 		TargetRotation,
