@@ -8,6 +8,7 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "HUD/AimAssistHUD.h"
 #include "Interfaces/AimTargetInterface.h"
+#include "Types/AimAssistData.h"
 
 // Sets default values for this component's properties
 UAimAssistComponent::UAimAssistComponent()
@@ -63,10 +64,16 @@ void UAimAssistComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 	if (!IsValid(OwningPlayerController) || !OwningPlayerController->IsLocalController())
 		return;
 
-	// Debug draw shapes
-	RequestDebugAimAssistCircles();
+	// Get list of valid targets
+	const TArray<FAimAssistTarget> ValidTargetList = GetValidTargets();
 
-	GetActorsInAimZone();
+	if (!ValidTargetList.IsEmpty())
+	{
+		// find the closest target
+	}
+
+	// Hard exit
+	return;
 
 	FAimTargetData OutCenterMostTarget;
 	const bool bCenterMostTargetFound = FindCenterMostTarget(AimTargetList, OutCenterMostTarget);
@@ -83,6 +90,9 @@ void UAimAssistComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 		// Apply modifiers
 		ApplyMagnetism(DeltaTime, OutCenterMostTarget.HitComponent->GetComponentLocation(), CurrentTargetDirection);
 	}
+
+	// Debug draw shapes
+	RequestDebugAimAssistCircles();
 }
 
 void UAimAssistComponent::EnableAimAssist(bool bEnabled)
@@ -91,27 +101,27 @@ void UAimAssistComponent::EnableAimAssist(bool bEnabled)
 	bAimAssistEnabled = bEnabled;
 }
 
-void UAimAssistComponent::GetActorsInAimZone()
+TArray<FAimAssistTarget> UAimAssistComponent::GetValidTargets()
 {
-	// Clear the existing targets list
-	AimTargetList.Empty();
+	TArray<FAimAssistTarget> ValidTargets;
 
-	// Determine the largest radius from all of aim assist components
-	TArray<float> AimAssistZones{ FrictionRadius, MagnetismRadius };
+	// Get the largest radius from all of aim assist components
+	const TArray<float> AimAssistZones{ FrictionRadius, MagnetismRadius };
 	const float LargestAimAssistZone = FMath::Max(AimAssistZones);
 
 	// Screen center
+	// TODO: Make it a visible property users can change
 	int SizeX, SizeY;
 	OwningPlayerController->GetViewportSize(SizeX, SizeY);
 	FVector2D ScreenCenter = FVector2D(SizeX * 0.5f, SizeY * 0.5f);
 
-	// Do a box overlap
+	// Sweep-Multi by object type
 	TArray<FHitResult> OutHits;
 	const FVector StartLoc = OwningPlayerCameraManager->GetCameraLocation();
 	const FVector CameraForward = OwningPlayerCameraManager->GetCameraRotation().Vector();
 	const FVector EndLoc = StartLoc + (CameraForward * OverlapRange);
 	FCollisionQueryParams QueryParams; // Collision query param
-	QueryParams.bTraceComplex = false;
+	QueryParams.bTraceComplex = false; // Disable complex trace
 	QueryParams.AddIgnoredActor(OwningPlayerController->GetPawn()); // Ignore controlled pawn
 	GetWorld()->SweepMultiByObjectType(
 		OutHits,
@@ -127,37 +137,73 @@ void UAimAssistComponent::GetActorsInAimZone()
 		if (!Hit.GetActor()->GetClass()->ImplementsInterface(UAimTargetInterface::StaticClass()))
 			continue;
 
-		// Get all the hit target components on actor
-		const TArray<USceneComponent*> AimTargetComps = IAimTargetInterface::Execute_GetAimTargets(Hit.GetActor());
-		for (const auto& TargetComp : AimTargetComps)
+		// Get all the hit assistance targets on actor
+		const TArray<FAimAssistTarget> AimAssistTargets = IAimTargetInterface::Execute_GetAimAssistTargets(Hit.GetActor());
+
+		// Loop over the assist targets
+		for (const auto& AimAssistTarget : AimAssistTargets)
 		{
-			const FVector CompWorldLoc = TargetComp->GetComponentLocation();
+			// Build target data
+			FAimAssistTarget TargetData;
+			TargetData.Component = AimAssistTarget.Component;
 
-			// TODO: Visiblity trace from camera to hit component
-
-			FVector2D HitActorScreenLoc;
-			if (OwningPlayerController->ProjectWorldLocationToScreen(CompWorldLoc, HitActorScreenLoc, true))
+			// Loop over the socket locations
+			for (const auto& Socket : AimAssistTarget.Sockets)
 			{
-				auto DistanceFromCenter = FVector2D::DistSquared(HitActorScreenLoc, ScreenCenter);
-				// Target Data
-				FAimTargetData TargetData;
-				TargetData.Actor = Hit.GetActor();
-				TargetData.HitComponent = TargetComp;
-				TargetData.ScreenPosition = HitActorScreenLoc;
-				TargetData.DistanceSqFromScreenCenter = DistanceFromCenter;
+				const FVector SocketLoc = AimAssistTarget.Component->GetSocketLocation(Socket);
 
-				// Get all the targets inside the largest aim zone
-				if (DistanceFromCenter <= FMath::Square(LargestAimAssistZone))
+				// Check if the socket location is inside the screen aim assist radius
+				if (IsLocationInsideScreenCircle(SocketLoc, ScreenCenter, LargestAimAssistZone))
 				{
-					UKismetSystemLibrary::DrawDebugLine(GetWorld(), StartLoc, CompWorldLoc, FLinearColor::Green);
-					UKismetSystemLibrary::DrawDebugString(GetWorld(), CompWorldLoc, "Target");
+					// Do a Visibility check for that socket location on component
+					FHitResult OutVisibilityHit;
+					FCollisionQueryParams VisibilityQueryParams;
+					VisibilityQueryParams.AddIgnoredActor(OwningPlayerController->GetPawn());
+					VisibilityQueryParams.bTraceComplex = false;
+					// Debug
+					FColor DebugTraceColor = FColor::Green;
+					if (GetWorld()->LineTraceSingleByChannel(OutVisibilityHit, StartLoc, SocketLoc, ECC_Visibility, VisibilityQueryParams))
+					{
+						// Check if the hit component is same as the current aim assist component
+						if (OutVisibilityHit.GetComponent() == AimAssistTarget.Component)
+						{
+							// Add socket to list
+							TargetData.Sockets.Add(Socket);
+						}
+						else
+						{
+							DebugTraceColor = FColor::Red;
+						}
 
-					// Add the target to list
-					AimTargetList.Add(TargetData);
+						DrawDebugLine(GetWorld(), StartLoc, OutVisibilityHit.Location, DebugTraceColor, false, 0.0f);
+					}
+					DrawDebugString(GetWorld(), SocketLoc, Socket.ToString(), nullptr, FColor::White, 0.0f);
 				}
 			}
+
+			// Add the target data into the aim list
+			ValidTargets.Add(TargetData);
 		}
 	}
+
+	return ValidTargets;
+}
+
+bool UAimAssistComponent::IsLocationInsideScreenCircle(const FVector& TargetLoc, const FVector2D& ScreenPoint, const float Radius)
+{
+	FVector2D TargetScreenLoc;
+	if (!OwningPlayerController->ProjectWorldLocationToScreen(TargetLoc, TargetScreenLoc, true))
+		return false;
+
+	// Distance squared between target and point on screen
+	float DistanceSq = FVector2D::DistSquared(TargetScreenLoc, ScreenPoint);
+
+	// Check if the target point falls in the radius
+	if (DistanceSq <= FMath::Square(Radius))
+		return true;
+
+	// Else return false
+	return false;
 }
 
 bool UAimAssistComponent::FindCenterMostTarget(TArray<FAimTargetData> Targets, FAimTargetData& OutTargetData)
@@ -205,7 +251,7 @@ void UAimAssistComponent::CalculateFriction(FAimTargetData Target)
 			FrictionCurveValue = FrictionCurve->GetFloatValue(FrictionScale);
 		else
 			FrictionCurveValue = 0.75f; // Default value in case curve not found
-		
+
 
 		CurrentAimFriction = FrictionCurveValue;
 		return;

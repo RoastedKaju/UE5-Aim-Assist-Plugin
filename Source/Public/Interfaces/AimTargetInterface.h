@@ -4,9 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
+#include "Types/AimAssistData.h"
 #include "AimTargetInterface.generated.h"
-
-class USceneComponent;
 
 /*
 This class does not need to be modified.
@@ -27,6 +26,9 @@ class IAimTargetInterface
 	GENERATED_BODY()
 
 public:
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Aim Assist")
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "AimAssist")
 	TArray<USceneComponent*> GetAimTargets() const;
+
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "AimAssist")
+	TArray<FAimAssistTarget> GetAimAssistTargets() const;
 };

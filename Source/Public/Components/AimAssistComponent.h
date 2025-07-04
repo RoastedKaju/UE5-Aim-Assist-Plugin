@@ -10,6 +10,7 @@ class APlayerController;
 class APlayerCameraManager;
 class AAimAssistHUD;
 class USceneComponent;
+struct FAimAssistTarget;
 
 USTRUCT(BlueprintType)
 struct AIMASSIST_API FAimTargetData
@@ -57,7 +58,10 @@ public:
 	void EnableAimAssist(bool bEnabled);
 
 	UFUNCTION(BlueprintCallable, Category = "AimAssist")
-	void GetActorsInAimZone();
+	TArray<FAimAssistTarget> GetValidTargets();
+
+	UFUNCTION(BlueprintCallable, Category = "AimAssist")
+	bool IsLocationInsideScreenCircle(const FVector& TargetLoc, const FVector2D& ScreenPoint, const float Radius);
 
 	UFUNCTION(BlueprintCallable, Category = "AimAssist")
 	bool FindCenterMostTarget(TArray<FAimTargetData> Targets, FAimTargetData& OutTargetData);
@@ -92,6 +96,9 @@ protected:
 
 	UPROPERTY(BlueprintReadWrite, Category = "AimAssist")
 	TArray<FAimTargetData> AimTargetList;
+
+	UPROPERTY(BlueprintReadWrite, Category = "AimAssist")
+	TArray<FAimAssistTarget> ValidAimAssistTargets;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist")
 	FVector OverlapBoxHalfSize;
