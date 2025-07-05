@@ -2,12 +2,9 @@
 
 
 #include "Components/AimAssistComponent.h"
-#include "Components/SceneComponent.h"
 #include "GameFramework/PlayerController.h"
-#include "Camera/PlayerCameraManager.h"
-#include "Kismet/KismetSystemLibrary.h"
-#include "HUD/AimAssistHUD.h"
 #include "Interfaces/AimTargetInterface.h"
+#include "Camera/PlayerCameraManager.h"
 #include "Types/AimAssistData.h"
 
 // Sets default values for this component's properties
@@ -28,6 +25,8 @@ UAimAssistComponent::UAimAssistComponent()
 	bEnableMagnetism = false;
 	MagnetismRadius = 45.0f;
 	CurrentAimMagnetism = 0.0f;
+
+	bShowVisibilityCheckLines = false;
 }
 
 // Called when the game starts
@@ -75,29 +74,25 @@ void UAimAssistComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 
 		if (IsValid(BestTargetData.Component))
 		{
-			// TODO: Apply aim modifiers
 			UE_LOG(LogTemp, Log, TEXT("VALID BEST TARGET -> %s"), *BestTargetData.Component->GetName());
+
+			FVector2D TargetScreenLoc;
+			if (PlayerController->ProjectWorldLocationToScreen(BestTargetData.SocketLocation, TargetScreenLoc, true))
+			{
+				const float DistanceSq = FVector2D::DistSquared(TargetScreenLoc, (GetViewportCenter() + OffsetFromCenter));
+				const FVector ToTargetDir = (BestTargetData.SocketLocation - PlayerCameraManager->GetCameraLocation()).GetSafeNormal();
+
+				if (bEnableFriction)
+					CalculateFriction(BestTargetData, DistanceSq);
+
+				if (bEnableMagnetism)
+				{
+					CalculateMagnetism(BestTargetData, DistanceSq);
+					ApplyMagnetism(DeltaTime, BestTargetData.SocketLocation, ToTargetDir);
+				}
+			}
 		}
 	}
-
-	//FAimTargetData OutCenterMostTarget;
-	//const bool bCenterMostTargetFound = FindCenterMostTarget(AimTargetList, OutCenterMostTarget);
-
-	//// Calculate assist modifiers
-	//CalculateFriction(OutCenterMostTarget);
-	//CalculateMagnetism(OutCenterMostTarget);
-
-	//if (bCenterMostTargetFound)
-	//{
-	//	UKismetSystemLibrary::DrawDebugString(GetWorld(), OutCenterMostTarget.HitComponent->GetComponentLocation() + (FVector::UpVector * 20.0f), "Active Target", nullptr, FLinearColor::Green);
-	//	const FVector CurrentTargetDirection = (OutCenterMostTarget.HitComponent->GetComponentLocation() - PlayerCameraManager->GetCameraLocation()).GetSafeNormal();
-
-	//	// Apply modifiers
-	//	ApplyMagnetism(DeltaTime, OutCenterMostTarget.HitComponent->GetComponentLocation(), CurrentTargetDirection);
-	//}
-
-	//// Debug draw shapes
-	//RequestDebugAimAssistCircles();
 }
 
 void UAimAssistComponent::EnableAimAssist(bool bEnabled)
@@ -115,9 +110,7 @@ TArray<FAimAssistTarget> UAimAssistComponent::GetValidTargets()
 	const float LargestAimAssistZone = FMath::Max(AimAssistZones);
 
 	// Screen center
-	int SizeX, SizeY;
-	PlayerController->GetViewportSize(SizeX, SizeY);
-	FVector2D ScreenCenter = FVector2D(SizeX * 0.5f, SizeY * 0.5f);
+	FVector2D ScreenCenter = GetViewportCenter();
 	ScreenCenter += OffsetFromCenter;
 
 	// Sweep-Multi by object type
@@ -171,16 +164,11 @@ TArray<FAimAssistTarget> UAimAssistComponent::GetValidTargets()
 					{
 						// Check if the hit component is same as the current aim assist component
 						if (OutVisibilityHit.GetComponent() == AimAssistTarget.Component)
-						{
-							// Add socket to list
-							TargetData.Sockets.Add(Socket);
-						}
+							TargetData.Sockets.Add(Socket); // Add socket to list
 						else
-						{
 							DebugTraceColor = FColor::Red;
-						}
-
-						DrawDebugLine(GetWorld(), StartLoc, OutVisibilityHit.Location, DebugTraceColor, false, 0.0f);
+						if (bShowVisibilityCheckLines)
+							DrawDebugLine(GetWorld(), StartLoc, OutVisibilityHit.Location, DebugTraceColor, false, 0.0f);
 					}
 				}
 			}
@@ -240,69 +228,72 @@ void UAimAssistComponent::FindBestFrontFacingTarget(const TArray<FAimAssistTarge
 	OutTargetData = BestTarget;
 }
 
-void UAimAssistComponent::CalculateFriction(FAimTargetData Target)
+FVector2D UAimAssistComponent::GetViewportCenter()
 {
-	//if (!IsValid(Target.Actor) || bEnableFriction == false)
-	//	return;
+	check(PlayerController);
 
-	//const float FrictionRadiusSq = FMath::Square(FrictionRadius);
+	int SizeX, SizeY;
+	PlayerController->GetViewportSize(SizeX, SizeY);
+	return FVector2D(SizeX * 0.5f, SizeY * 0.5f);
+}
 
-	//if (Target.DistanceSqFromScreenCenter < FrictionRadiusSq)
-	//{
-	//	// Calculate scale depending on how close we are to the center
-	//	float FrictionScale = 1.0f - (Target.DistanceSqFromScreenCenter / FrictionRadiusSq);
-	//	// Clamp
-	//	FrictionScale = FMath::Clamp(FrictionScale, 0.0f, 1.0f);
+void UAimAssistComponent::CalculateFriction(FAimTargetData Target, float DistanceSqFromOrigin)
+{
+	const float FrictionRadiusSq = FMath::Square(FrictionRadius);
 
-	//	// Get the value from curve
-	//	float FrictionCurveValue;
-	//	if (FrictionCurve)
-	//		FrictionCurveValue = FrictionCurve->GetFloatValue(FrictionScale);
-	//	else
-	//		FrictionCurveValue = 0.75f; // Default value in case curve not found
+	if (DistanceSqFromOrigin < FrictionRadiusSq)
+	{
+		// Calculate scale depending on how close we are to the center
+		float FrictionScale = 1.0f - (DistanceSqFromOrigin / FrictionRadiusSq);
+		// Clamp
+		FrictionScale = FMath::Clamp(FrictionScale, 0.0f, 1.0f);
+
+		// Get the value from curve
+		float FrictionCurveValue;
+		if (FrictionCurve)
+			FrictionCurveValue = FrictionCurve->GetFloatValue(FrictionScale);
+		else
+			FrictionCurveValue = 0.75f; // Default value in case curve not found
 
 
-	//	CurrentAimFriction = FrictionCurveValue;
-	//	return;
-	//}
+		CurrentAimFriction = FrictionCurveValue;
+		return;
+	}
 
-	//// Else zero out the aim friction
-	//CurrentAimFriction = 0.0f;
+	// Else zero out the aim friction
+	CurrentAimFriction = 0.0f;
 }
 
 float UAimAssistComponent::GetCurrentAimFriction()
 {
-	return 1.0f - CurrentAimFriction;
+	return 1.0f - FMath::Min(CurrentAimFriction, 0.9f);
 }
 
-void UAimAssistComponent::CalculateMagnetism(FAimTargetData Target)
+void UAimAssistComponent::CalculateMagnetism(FAimTargetData Target, float DistanceSqFromOrigin)
 {
-	//if (!IsValid(Target.Actor) || bEnableMagnetism == false)
-	//	return;
+	const float MagnetismRadiusSq = FMath::Square(MagnetismRadius);
 
-	//const float MagnetismRadiusSq = FMath::Square(MagnetismRadius);
+	if (DistanceSqFromOrigin < MagnetismRadiusSq)
+	{
+		// Magnetic factor depending on how close to the center of screen
+		float MagnetismScale = 1.0f - (DistanceSqFromOrigin / MagnetismRadiusSq);
+		// Clamp
+		MagnetismScale = FMath::Clamp(MagnetismScale, 0.0f, 1.0f);
 
-	//if (Target.DistanceSqFromScreenCenter < MagnetismRadiusSq)
-	//{
-	//	// Magnetic factor depending on how close to the center of screen
-	//	float MagnetismScale = 1.0f - (Target.DistanceSqFromScreenCenter / MagnetismRadiusSq);
-	//	// Clamp
-	//	MagnetismScale = FMath::Clamp(MagnetismScale, 0.0f, 1.0f);
+		GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, FString::Printf(TEXT("Magnetism Rate For Active Target : %.2f"), MagnetismScale));
 
-	//	GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, FString::Printf(TEXT("Magnetism Rate For Active Target : %.2f"), MagnetismScale));
+		// Get the value from curve
+		float MagnetismCurveValue;
+		if (MagnetismCurve)
+			MagnetismCurveValue = MagnetismCurve->GetFloatValue(MagnetismScale);
+		else
+			MagnetismCurveValue = 0.5f; // default value
 
-	//	// Get the value from curve
-	//	float MagnetismCurveValue;
-	//	if (MagnetismCurve)
-	//		MagnetismCurveValue = MagnetismCurve->GetFloatValue(MagnetismScale);
-	//	else
-	//		MagnetismCurveValue = 0.5f; // default value
+		CurrentAimMagnetism = MagnetismCurveValue;
+		return;
+	}
 
-	//	CurrentAimMagnetism = MagnetismCurveValue;
-	//	return;
-	//}
-
-	//CurrentAimMagnetism = 0.0f;
+	CurrentAimMagnetism = 0.0f;
 }
 
 void UAimAssistComponent::ApplyMagnetism(float DeltaTime, const FVector& TargetLocation, const FVector& TargetDirection)
@@ -314,8 +305,7 @@ void UAimAssistComponent::ApplyMagnetism(float DeltaTime, const FVector& TargetL
 	FRotator CurrentRotation = PlayerController->GetControlRotation();
 	FRotator TargetRotation = TargetDirection.Rotation();
 
-	// TODO: This is where you should use the values from curve
-	float RotationSpeed = FMath::Lerp(1.0f, 5.0f, CurrentAimMagnetism);
+	float RotationSpeed = CurrentAimMagnetism;
 
 	FRotator NewRotation = FMath::RInterpTo(
 		CurrentRotation,

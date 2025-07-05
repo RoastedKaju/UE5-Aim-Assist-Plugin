@@ -55,14 +55,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "AimAssist")
 	void FindBestFrontFacingTarget(const TArray<FAimAssistTarget>& Targets, FAimTargetData& OutTargetData);
 
+	UFUNCTION(BlueprintPure, Category = "AimAssist")
+	FVector2D GetViewportCenter();
+
 	UFUNCTION(BlueprintCallable, Category = "AimAssist|Friction")
-	void CalculateFriction(FAimTargetData Target);
+	void CalculateFriction(FAimTargetData Target, float DistanceSqFromOrigin);
 
 	UFUNCTION(BlueprintPure, Category = "AimAssist|Friction")
 	float GetCurrentAimFriction();
 
 	UFUNCTION(BlueprintCallable, Category = "AimAssist|Magnetism")
-	void CalculateMagnetism(FAimTargetData Target);
+	void CalculateMagnetism(FAimTargetData Target, float DistanceSqFromOrigin);
 
 	UFUNCTION(BlueprintCallable, Category = "AimAssist|Magnetism")
 	void ApplyMagnetism(float DeltaTime, const FVector& TargetLocation, const FVector& TargetDirection);
@@ -107,6 +110,7 @@ protected:
 	TObjectPtr<UCurveFloat> FrictionCurve;
 
 	// Aim friction
+	UPROPERTY(BlueprintReadOnly, Category = "AimAssist|Friction")
 	float CurrentAimFriction;
 
 	/** Magnetism section */
@@ -121,4 +125,7 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, Category = "AimAssist|Magnetism")
 	float CurrentAimMagnetism;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Debug")
+	bool bShowVisibilityCheckLines;
 };
