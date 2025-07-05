@@ -39,11 +39,11 @@ void UAimAssistComponent::BeginPlay()
 	EnableAimAssist(false);
 
 	// Cache player controller and camera manager
-	OwningPlayerController = Cast<APlayerController>(GetOwner());
-	check(OwningPlayerController);
+	PlayerController = Cast<APlayerController>(GetOwner());
+	check(PlayerController);
 
-	OwningPlayerCameraManager = OwningPlayerController->PlayerCameraManager;
-	check(OwningPlayerCameraManager);
+	PlayerCameraManager = PlayerController->PlayerCameraManager;
+	check(PlayerCameraManager);
 
 	// Setup the object query params
 	for (const auto& ObjectType : ObjectTypesToQuery)
@@ -52,7 +52,7 @@ void UAimAssistComponent::BeginPlay()
 	}
 
 	// Get HUD for drawing debug elements on screen
-	DebugHUD = Cast<AAimAssistHUD>(OwningPlayerController->GetHUD());
+	DebugHUD = Cast<AAimAssistHUD>(PlayerController->GetHUD());
 }
 
 // Called every frame
@@ -61,7 +61,7 @@ void UAimAssistComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 	// Ensure that controller is valid all the time and is locally controlled.
-	if (!IsValid(OwningPlayerController) || !OwningPlayerController->IsLocalController())
+	if (!IsValid(PlayerController) || !PlayerController->IsLocalController())
 		return;
 
 	// Get list of valid targets
@@ -70,29 +70,34 @@ void UAimAssistComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 	if (!ValidTargetList.IsEmpty())
 	{
 		// find the closest target
+		TPair<UPrimitiveComponent*, FVector> BestTarget;
+		FindBestFrontFacingTarget(ValidTargetList, BestTarget.Key, BestTarget.Value);
+
+		if (IsValid(BestTarget.Key))
+		{
+			UE_LOG(LogTemp, Log, TEXT("Best Target -> %s, %s"), *BestTarget.Key->GetName(), *BestTarget.Value.ToString());
+			DrawDebugString(GetWorld(), BestTarget.Value + FVector::UpVector * 5.0f, "Best Target", nullptr, FColor::Red, 0.0f);
+		}
 	}
 
-	// Hard exit
-	return;
+	//FAimTargetData OutCenterMostTarget;
+	//const bool bCenterMostTargetFound = FindCenterMostTarget(AimTargetList, OutCenterMostTarget);
 
-	FAimTargetData OutCenterMostTarget;
-	const bool bCenterMostTargetFound = FindCenterMostTarget(AimTargetList, OutCenterMostTarget);
+	//// Calculate assist modifiers
+	//CalculateFriction(OutCenterMostTarget);
+	//CalculateMagnetism(OutCenterMostTarget);
 
-	// Calculate assist modifiers
-	CalculateFriction(OutCenterMostTarget);
-	CalculateMagnetism(OutCenterMostTarget);
+	//if (bCenterMostTargetFound)
+	//{
+	//	UKismetSystemLibrary::DrawDebugString(GetWorld(), OutCenterMostTarget.HitComponent->GetComponentLocation() + (FVector::UpVector * 20.0f), "Active Target", nullptr, FLinearColor::Green);
+	//	const FVector CurrentTargetDirection = (OutCenterMostTarget.HitComponent->GetComponentLocation() - PlayerCameraManager->GetCameraLocation()).GetSafeNormal();
 
-	if (bCenterMostTargetFound)
-	{
-		UKismetSystemLibrary::DrawDebugString(GetWorld(), OutCenterMostTarget.HitComponent->GetComponentLocation() + (FVector::UpVector * 20.0f), "Active Target", nullptr, FLinearColor::Green);
-		const FVector CurrentTargetDirection = (OutCenterMostTarget.HitComponent->GetComponentLocation() - OwningPlayerCameraManager->GetCameraLocation()).GetSafeNormal();
+	//	// Apply modifiers
+	//	ApplyMagnetism(DeltaTime, OutCenterMostTarget.HitComponent->GetComponentLocation(), CurrentTargetDirection);
+	//}
 
-		// Apply modifiers
-		ApplyMagnetism(DeltaTime, OutCenterMostTarget.HitComponent->GetComponentLocation(), CurrentTargetDirection);
-	}
-
-	// Debug draw shapes
-	RequestDebugAimAssistCircles();
+	//// Debug draw shapes
+	//RequestDebugAimAssistCircles();
 }
 
 void UAimAssistComponent::EnableAimAssist(bool bEnabled)
@@ -112,21 +117,21 @@ TArray<FAimAssistTarget> UAimAssistComponent::GetValidTargets()
 	// Screen center
 	// TODO: Make it a visible property users can change
 	int SizeX, SizeY;
-	OwningPlayerController->GetViewportSize(SizeX, SizeY);
+	PlayerController->GetViewportSize(SizeX, SizeY);
 	FVector2D ScreenCenter = FVector2D(SizeX * 0.5f, SizeY * 0.5f);
 
 	// Sweep-Multi by object type
 	TArray<FHitResult> OutHits;
-	const FVector StartLoc = OwningPlayerCameraManager->GetCameraLocation();
-	const FVector CameraForward = OwningPlayerCameraManager->GetCameraRotation().Vector();
+	const FVector StartLoc = PlayerCameraManager->GetCameraLocation();
+	const FVector CameraForward = PlayerCameraManager->GetCameraRotation().Vector();
 	const FVector EndLoc = StartLoc + (CameraForward * OverlapRange);
 	FCollisionQueryParams QueryParams; // Collision query param
 	QueryParams.bTraceComplex = false; // Disable complex trace
-	QueryParams.AddIgnoredActor(OwningPlayerController->GetPawn()); // Ignore controlled pawn
+	QueryParams.AddIgnoredActor(PlayerController->GetPawn()); // Ignore controlled pawn
 	GetWorld()->SweepMultiByObjectType(
 		OutHits,
 		StartLoc, EndLoc,
-		OwningPlayerCameraManager->GetCameraRotation().Quaternion(),
+		PlayerCameraManager->GetCameraRotation().Quaternion(),
 		ObjectQueryParams,
 		FCollisionShape::MakeBox(OverlapBoxHalfSize),
 		QueryParams);
@@ -153,12 +158,12 @@ TArray<FAimAssistTarget> UAimAssistComponent::GetValidTargets()
 				const FVector SocketLoc = AimAssistTarget.Component->GetSocketLocation(Socket);
 
 				// Check if the socket location is inside the screen aim assist radius
-				if (IsLocationInsideScreenCircle(SocketLoc, ScreenCenter, LargestAimAssistZone))
+				if (IsTargetWithinScreenCircle(SocketLoc, ScreenCenter, LargestAimAssistZone))
 				{
 					// Do a Visibility check for that socket location on component
 					FHitResult OutVisibilityHit;
 					FCollisionQueryParams VisibilityQueryParams;
-					VisibilityQueryParams.AddIgnoredActor(OwningPlayerController->GetPawn());
+					VisibilityQueryParams.AddIgnoredActor(PlayerController->GetPawn());
 					VisibilityQueryParams.bTraceComplex = false;
 					// Debug
 					FColor DebugTraceColor = FColor::Green;
@@ -189,10 +194,10 @@ TArray<FAimAssistTarget> UAimAssistComponent::GetValidTargets()
 	return ValidTargets;
 }
 
-bool UAimAssistComponent::IsLocationInsideScreenCircle(const FVector& TargetLoc, const FVector2D& ScreenPoint, const float Radius)
+bool UAimAssistComponent::IsTargetWithinScreenCircle(const FVector& TargetLoc, const FVector2D& ScreenPoint, const float Radius)
 {
 	FVector2D TargetScreenLoc;
-	if (!OwningPlayerController->ProjectWorldLocationToScreen(TargetLoc, TargetScreenLoc, true))
+	if (!PlayerController->ProjectWorldLocationToScreen(TargetLoc, TargetScreenLoc, true))
 		return false;
 
 	// Distance squared between target and point on screen
@@ -206,29 +211,38 @@ bool UAimAssistComponent::IsLocationInsideScreenCircle(const FVector& TargetLoc,
 	return false;
 }
 
-bool UAimAssistComponent::FindCenterMostTarget(TArray<FAimTargetData> Targets, FAimTargetData& OutTargetData)
+void UAimAssistComponent::FindBestFrontFacingTarget(const TArray<FAimAssistTarget>& Targets, UPrimitiveComponent*& OutComponent, FVector& OutLocation)
 {
-	if (Targets.IsEmpty())
-		return false;
+	float BestScore = -FLT_MAX;
+	TPair<UPrimitiveComponent*, FVector> BestTarget;
 
-	FAimTargetData ResultTargetData = *Targets.begin();
-
-	// Loop over the target list and do dot product
-	for (auto& Target : Targets)
+	for (const auto& Target : Targets)
 	{
-		const FVector TargetDirection = (Target.HitComponent->GetComponentLocation() - OwningPlayerCameraManager->GetCameraLocation()).GetSafeNormal();
-		const FVector CameraDirection = OwningPlayerCameraManager->GetCameraRotation().Vector().GetSafeNormal();
-		Target.DotProduct = FVector::DotProduct(CameraDirection, TargetDirection);
-
-		if (Target.DotProduct > ResultTargetData.DotProduct)
+		for (const auto& Socket : Target.Sockets)
 		{
-			ResultTargetData = Target;
+			const FVector SocketLoc = Target.Component->GetSocketLocation(Socket);
+			const FVector ToTarget = SocketLoc - PlayerCameraManager->GetCameraLocation();
+			const float Distance = ToTarget.SizeSquared();
+			const FVector ToTargetDir = ToTarget.GetSafeNormal();
+
+			// How "in front" the target is
+			const float Dot = FVector::DotProduct(PlayerCameraManager->GetCameraRotation().Vector(), ToTargetDir);
+
+			// Combine distance and front-ness into a score, prevent division by 0
+			// Currently only takes into account dot product
+			const float Score = Dot;
+
+			if (Score > BestScore)
+			{
+				BestScore = Score;
+				BestTarget = TPair<UPrimitiveComponent*, FVector>(Target.Component, SocketLoc);
+			}
 		}
 	}
 
-	OutTargetData = ResultTargetData;
-
-	return true;
+	// Return the best component and location
+	OutComponent = BestTarget.Key;
+	OutLocation = BestTarget.Value;
 }
 
 void UAimAssistComponent::CalculateFriction(FAimTargetData Target)
@@ -302,7 +316,7 @@ void UAimAssistComponent::ApplyMagnetism(float DeltaTime, const FVector& TargetL
 		return;
 
 	// Get current control rotation
-	FRotator CurrentRotation = OwningPlayerController->GetControlRotation();
+	FRotator CurrentRotation = PlayerController->GetControlRotation();
 	FRotator TargetRotation = TargetDirection.Rotation();
 
 	// TODO: This is where you should use the values from curve
@@ -316,7 +330,7 @@ void UAimAssistComponent::ApplyMagnetism(float DeltaTime, const FVector& TargetL
 	);
 
 	// Apply the new rotation
-	OwningPlayerController->SetControlRotation(NewRotation);
+	PlayerController->SetControlRotation(NewRotation);
 }
 
 void UAimAssistComponent::RequestDebugAimAssistCircles()
@@ -329,7 +343,7 @@ void UAimAssistComponent::RequestDebugAimAssistCircles()
 
 	// Screen center
 	int SizeX, SizeY;
-	OwningPlayerController->GetViewportSize(SizeX, SizeY);
+	PlayerController->GetViewportSize(SizeX, SizeY);
 	FVector2D ScreenCenter = FVector2D(SizeX * 0.5f, SizeY * 0.5f);
 
 	// Friction circle
