@@ -8,34 +8,23 @@
 
 class APlayerController;
 class APlayerCameraManager;
-class AAimAssistHUD;
 class USceneComponent;
 struct FAimAssistTarget;
 
 USTRUCT(BlueprintType)
-struct AIMASSIST_API FAimTargetData
+struct FAimTargetData
 {
 	GENERATED_BODY()
 
-	UPROPERTY(BlueprintReadWrite)
-	TObjectPtr<AActor> Actor;
+	UPROPERTY(BlueprintReadWrite, Category = "AimTargetData")
+	UPrimitiveComponent* Component = nullptr;
 
-	UPROPERTY(BlueprintReadWrite)
-	TObjectPtr<USceneComponent> HitComponent;
+	UPROPERTY(BlueprintReadWrite, Category = "AimTargetData")
+	FName SocketName;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FVector2D ScreenPosition;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float DistanceSqFromScreenCenter;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float Distance;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float DotProduct = -1.0f;
+	UPROPERTY(BlueprintReadWrite, Category = "AimTargetData")
+	FVector SocketLocation;
 };
-
 
 UCLASS(Blueprintable, ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class AIMASSIST_API UAimAssistComponent : public UActorComponent
@@ -64,7 +53,7 @@ public:
 	bool IsTargetWithinScreenCircle(const FVector& TargetLoc, const FVector2D& ScreenPoint, const float Radius);
 
 	UFUNCTION(BlueprintCallable, Category = "AimAssist")
-	void FindBestFrontFacingTarget(const TArray<FAimAssistTarget>& Targets, UPrimitiveComponent*& OutComponent, FVector& OutLocation);
+	void FindBestFrontFacingTarget(const TArray<FAimAssistTarget>& Targets, FAimTargetData& OutTargetData);
 
 	UFUNCTION(BlueprintCallable, Category = "AimAssist|Friction")
 	void CalculateFriction(FAimTargetData Target);
@@ -78,9 +67,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "AimAssist|Magnetism")
 	void ApplyMagnetism(float DeltaTime, const FVector& TargetLocation, const FVector& TargetDirection);
 
-	UFUNCTION()
-	void RequestDebugAimAssistCircles();
-
 protected:
 	UPROPERTY(BlueprintReadWrite, Category = "AimAssist")
 	TObjectPtr<APlayerController> PlayerController;
@@ -88,20 +74,20 @@ protected:
 	UPROPERTY(BlueprintReadWrite, Category = "AimAssist")
 	TObjectPtr<APlayerCameraManager> PlayerCameraManager;
 
-	UPROPERTY()
-	TObjectPtr<AAimAssistHUD> DebugHUD;
-
 	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "AimAssist")
 	bool bAimAssistEnabled;
-
-	UPROPERTY(BlueprintReadWrite, Category = "AimAssist")
-	TArray<FAimTargetData> AimTargetList;
+	
+	UPROPERTY(BlueprintReadOnly, Category = "AimAssist")
+	FAimTargetData BestTargetData;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist", meta = (EditCondition = "bAimAssistEnabled"))
 	FVector OverlapBoxHalfSize;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist", meta = (EditCondition = "bAimAssistEnabled"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist", meta = (EditCondition = "bAimAssistEnabled", ClampMin = "25.0"))
 	float OverlapRange;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist", meta = (EditCondition = "bAimAssistEnabled"))
+	FVector2D OffsetFromCenter;
 
 	/** Collision query */
 	UPROPERTY(EditDefaultsOnly, Category = "AimAssist", meta = (EditCondition = "bAimAssistEnabled"))
@@ -114,20 +100,20 @@ protected:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Friction", meta = (EditCondition = "bAimAssistEnabled"))
 	bool bEnableFriction;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Friction", meta = (EditCondition = "bAimAssistEnabled && bEnableFriction"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Friction", meta = (EditCondition = "bAimAssistEnabled && bEnableFriction", ClampMin = "10.0"))
 	float FrictionRadius;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Friction", meta = (EditCondition = "bAimAssistEnabled && bEnableFriction"))
 	TObjectPtr<UCurveFloat> FrictionCurve;
 
-	UPROPERTY()
+	// Aim friction
 	float CurrentAimFriction;
 
 	/** Magnetism section */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Magnetism", meta = (EditCondition = "bAimAssistEnabled"))
 	bool bEnableMagnetism;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Magnetism", meta = (EditCondition = "bAimAssistEnabled && bEnableMagnetism"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Magnetism", meta = (EditCondition = "bAimAssistEnabled && bEnableMagnetism", ClampMin = "10.0"))
 	float MagnetismRadius;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Magnetism", meta = (EditCondition = "bAimAssistEnabled && bEnableMagnetism"))
@@ -135,8 +121,4 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, Category = "AimAssist|Magnetism")
 	float CurrentAimMagnetism;
-
-	/** Debug section */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Debug")
-	bool bDrawDebug;
 };

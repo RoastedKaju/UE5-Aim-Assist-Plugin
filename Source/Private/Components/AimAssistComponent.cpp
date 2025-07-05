@@ -18,6 +18,7 @@ UAimAssistComponent::UAimAssistComponent()
 
 	OverlapBoxHalfSize = FVector(50.0f, 500.0f, 500.0f);
 	OverlapRange = 1000.0f;
+	OffsetFromCenter = FVector2D::ZeroVector;
 	ObjectTypesToQuery = { ECC_WorldDynamic, ECC_Pawn };
 
 	bEnableFriction = true;
@@ -27,8 +28,6 @@ UAimAssistComponent::UAimAssistComponent()
 	bEnableMagnetism = false;
 	MagnetismRadius = 45.0f;
 	CurrentAimMagnetism = 0.0f;
-
-	bDrawDebug = false;
 }
 
 // Called when the game starts
@@ -51,8 +50,6 @@ void UAimAssistComponent::BeginPlay()
 		ObjectQueryParams.AddObjectTypesToQuery(ObjectType);
 	}
 
-	// Get HUD for drawing debug elements on screen
-	DebugHUD = Cast<AAimAssistHUD>(PlayerController->GetHUD());
 }
 
 // Called every frame
@@ -64,19 +61,22 @@ void UAimAssistComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 	if (!IsValid(PlayerController) || !PlayerController->IsLocalController())
 		return;
 
+	// Clear the pervious best target data
+	BestTargetData = FAimTargetData{};
+
 	// Get list of valid targets
 	const TArray<FAimAssistTarget> ValidTargetList = GetValidTargets();
 
 	if (!ValidTargetList.IsEmpty())
 	{
 		// find the closest target
-		TPair<UPrimitiveComponent*, FVector> BestTarget;
-		FindBestFrontFacingTarget(ValidTargetList, BestTarget.Key, BestTarget.Value);
+		FAimTargetData TempData;
+		FindBestFrontFacingTarget(ValidTargetList, BestTargetData);
 
-		if (IsValid(BestTarget.Key))
+		if (IsValid(BestTargetData.Component))
 		{
-			UE_LOG(LogTemp, Log, TEXT("Best Target -> %s, %s"), *BestTarget.Key->GetName(), *BestTarget.Value.ToString());
-			DrawDebugString(GetWorld(), BestTarget.Value + FVector::UpVector * 5.0f, "Best Target", nullptr, FColor::Red, 0.0f);
+			// TODO: Apply aim modifiers
+			UE_LOG(LogTemp, Log, TEXT("VALID BEST TARGET -> %s"), *BestTargetData.Component->GetName());
 		}
 	}
 
@@ -115,10 +115,10 @@ TArray<FAimAssistTarget> UAimAssistComponent::GetValidTargets()
 	const float LargestAimAssistZone = FMath::Max(AimAssistZones);
 
 	// Screen center
-	// TODO: Make it a visible property users can change
 	int SizeX, SizeY;
 	PlayerController->GetViewportSize(SizeX, SizeY);
 	FVector2D ScreenCenter = FVector2D(SizeX * 0.5f, SizeY * 0.5f);
+	ScreenCenter += OffsetFromCenter;
 
 	// Sweep-Multi by object type
 	TArray<FHitResult> OutHits;
@@ -182,7 +182,6 @@ TArray<FAimAssistTarget> UAimAssistComponent::GetValidTargets()
 
 						DrawDebugLine(GetWorld(), StartLoc, OutVisibilityHit.Location, DebugTraceColor, false, 0.0f);
 					}
-					DrawDebugString(GetWorld(), SocketLoc, Socket.ToString(), nullptr, FColor::White, 0.0f);
 				}
 			}
 
@@ -201,20 +200,16 @@ bool UAimAssistComponent::IsTargetWithinScreenCircle(const FVector& TargetLoc, c
 		return false;
 
 	// Distance squared between target and point on screen
-	float DistanceSq = FVector2D::DistSquared(TargetScreenLoc, ScreenPoint);
+	const float DistanceSq = FVector2D::DistSquared(TargetScreenLoc, ScreenPoint);
 
 	// Check if the target point falls in the radius
-	if (DistanceSq <= FMath::Square(Radius))
-		return true;
-
-	// Else return false
-	return false;
+	return DistanceSq <= FMath::Square(Radius);
 }
 
-void UAimAssistComponent::FindBestFrontFacingTarget(const TArray<FAimAssistTarget>& Targets, UPrimitiveComponent*& OutComponent, FVector& OutLocation)
+void UAimAssistComponent::FindBestFrontFacingTarget(const TArray<FAimAssistTarget>& Targets, FAimTargetData& OutTargetData)
 {
 	float BestScore = -FLT_MAX;
-	TPair<UPrimitiveComponent*, FVector> BestTarget;
+	FAimTargetData BestTarget;
 
 	for (const auto& Target : Targets)
 	{
@@ -235,44 +230,44 @@ void UAimAssistComponent::FindBestFrontFacingTarget(const TArray<FAimAssistTarge
 			if (Score > BestScore)
 			{
 				BestScore = Score;
-				BestTarget = TPair<UPrimitiveComponent*, FVector>(Target.Component, SocketLoc);
+				BestTarget.Component = Target.Component;
+				BestTarget.SocketName = Socket;
+				BestTarget.SocketLocation = SocketLoc;
 			}
 		}
 	}
-
 	// Return the best component and location
-	OutComponent = BestTarget.Key;
-	OutLocation = BestTarget.Value;
+	OutTargetData = BestTarget;
 }
 
 void UAimAssistComponent::CalculateFriction(FAimTargetData Target)
 {
-	if (!IsValid(Target.Actor) || bEnableFriction == false)
-		return;
+	//if (!IsValid(Target.Actor) || bEnableFriction == false)
+	//	return;
 
-	const float FrictionRadiusSq = FMath::Square(FrictionRadius);
+	//const float FrictionRadiusSq = FMath::Square(FrictionRadius);
 
-	if (Target.DistanceSqFromScreenCenter < FrictionRadiusSq)
-	{
-		// Calculate scale depending on how close we are to the center
-		float FrictionScale = 1.0f - (Target.DistanceSqFromScreenCenter / FrictionRadiusSq);
-		// Clamp
-		FrictionScale = FMath::Clamp(FrictionScale, 0.0f, 1.0f);
+	//if (Target.DistanceSqFromScreenCenter < FrictionRadiusSq)
+	//{
+	//	// Calculate scale depending on how close we are to the center
+	//	float FrictionScale = 1.0f - (Target.DistanceSqFromScreenCenter / FrictionRadiusSq);
+	//	// Clamp
+	//	FrictionScale = FMath::Clamp(FrictionScale, 0.0f, 1.0f);
 
-		// Get the value from curve
-		float FrictionCurveValue;
-		if (FrictionCurve)
-			FrictionCurveValue = FrictionCurve->GetFloatValue(FrictionScale);
-		else
-			FrictionCurveValue = 0.75f; // Default value in case curve not found
+	//	// Get the value from curve
+	//	float FrictionCurveValue;
+	//	if (FrictionCurve)
+	//		FrictionCurveValue = FrictionCurve->GetFloatValue(FrictionScale);
+	//	else
+	//		FrictionCurveValue = 0.75f; // Default value in case curve not found
 
 
-		CurrentAimFriction = FrictionCurveValue;
-		return;
-	}
+	//	CurrentAimFriction = FrictionCurveValue;
+	//	return;
+	//}
 
-	// Else zero out the aim friction
-	CurrentAimFriction = 0.0f;
+	//// Else zero out the aim friction
+	//CurrentAimFriction = 0.0f;
 }
 
 float UAimAssistComponent::GetCurrentAimFriction()
@@ -282,32 +277,32 @@ float UAimAssistComponent::GetCurrentAimFriction()
 
 void UAimAssistComponent::CalculateMagnetism(FAimTargetData Target)
 {
-	if (!IsValid(Target.Actor) || bEnableMagnetism == false)
-		return;
+	//if (!IsValid(Target.Actor) || bEnableMagnetism == false)
+	//	return;
 
-	const float MagnetismRadiusSq = FMath::Square(MagnetismRadius);
+	//const float MagnetismRadiusSq = FMath::Square(MagnetismRadius);
 
-	if (Target.DistanceSqFromScreenCenter < MagnetismRadiusSq)
-	{
-		// Magnetic factor depending on how close to the center of screen
-		float MagnetismScale = 1.0f - (Target.DistanceSqFromScreenCenter / MagnetismRadiusSq);
-		// Clamp
-		MagnetismScale = FMath::Clamp(MagnetismScale, 0.0f, 1.0f);
+	//if (Target.DistanceSqFromScreenCenter < MagnetismRadiusSq)
+	//{
+	//	// Magnetic factor depending on how close to the center of screen
+	//	float MagnetismScale = 1.0f - (Target.DistanceSqFromScreenCenter / MagnetismRadiusSq);
+	//	// Clamp
+	//	MagnetismScale = FMath::Clamp(MagnetismScale, 0.0f, 1.0f);
 
-		GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, FString::Printf(TEXT("Magnetism Rate For Active Target : %.2f"), MagnetismScale));
+	//	GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, FString::Printf(TEXT("Magnetism Rate For Active Target : %.2f"), MagnetismScale));
 
-		// Get the value from curve
-		float MagnetismCurveValue;
-		if (MagnetismCurve)
-			MagnetismCurveValue = MagnetismCurve->GetFloatValue(MagnetismScale);
-		else
-			MagnetismCurveValue = 0.5f; // default value
+	//	// Get the value from curve
+	//	float MagnetismCurveValue;
+	//	if (MagnetismCurve)
+	//		MagnetismCurveValue = MagnetismCurve->GetFloatValue(MagnetismScale);
+	//	else
+	//		MagnetismCurveValue = 0.5f; // default value
 
-		CurrentAimMagnetism = MagnetismCurveValue;
-		return;
-	}
+	//	CurrentAimMagnetism = MagnetismCurveValue;
+	//	return;
+	//}
 
-	CurrentAimMagnetism = 0.0f;
+	//CurrentAimMagnetism = 0.0f;
 }
 
 void UAimAssistComponent::ApplyMagnetism(float DeltaTime, const FVector& TargetLocation, const FVector& TargetDirection)
@@ -331,24 +326,4 @@ void UAimAssistComponent::ApplyMagnetism(float DeltaTime, const FVector& TargetL
 
 	// Apply the new rotation
 	PlayerController->SetControlRotation(NewRotation);
-}
-
-void UAimAssistComponent::RequestDebugAimAssistCircles()
-{
-	// Draw debug circles on screen
-	if (!IsValid(DebugHUD))
-	{
-		return;
-	}
-
-	// Screen center
-	int SizeX, SizeY;
-	PlayerController->GetViewportSize(SizeX, SizeY);
-	FVector2D ScreenCenter = FVector2D(SizeX * 0.5f, SizeY * 0.5f);
-
-	// Friction circle
-	DebugHUD->RequestCircleOutline(ScreenCenter, FLinearColor::Red, FrictionRadius);
-
-	// Magnetism circle
-	DebugHUD->RequestCircleOutline(ScreenCenter, FColor::Purple, MagnetismRadius);
 }
