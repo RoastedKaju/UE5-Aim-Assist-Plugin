@@ -8,6 +8,6 @@ public class AimAssist : ModuleRules
     {
         PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
-        PrivateDependencyModuleNames.AddRange(new string[] {"Core", "CoreUObject", "InputCore", "Engine", "UMG", "GameplayTags"});
+        PrivateDependencyModuleNames.AddRange(new string[] {"Core", "CoreUObject", "InputCore", "Engine", "UMG", "GameplayTags", "AIModule" });
     }
 }

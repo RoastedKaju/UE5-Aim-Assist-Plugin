@@ -2,6 +2,7 @@
 
 
 #include "Components/AimAssistComponent.h"
+#include "Components/TeamIdentityComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Interfaces/AimTargetInterface.h"
 #include "Camera/PlayerCameraManager.h"
@@ -48,7 +49,6 @@ void UAimAssistComponent::BeginPlay()
 	{
 		ObjectQueryParams.AddObjectTypesToQuery(ObjectType);
 	}
-
 }
 
 // Called every frame
@@ -134,6 +134,18 @@ TArray<FAimAssistTarget> UAimAssistComponent::GetValidTargets()
 		// Skip if the actor does not implement the UAimTargetInterface
 		if (!Hit.GetActor()->GetClass()->ImplementsInterface(UAimTargetInterface::StaticClass()))
 			continue;
+
+		if (bQueryForTeams)
+		{
+			// Check if the hit actor has team identity component
+			const auto TeamIdComp = Hit.GetActor()->GetComponentByClass<UTeamIdentityComponent>();
+			if (!IsValid(TeamIdComp))
+				continue;
+
+			const auto TeamId = TeamIdComp->GetGenericTeamId();
+			if (!TeamsToQuery.Contains(TeamId))
+				continue;
+		}
 
 		// Get all the hit assistance targets on actor
 		const TArray<FAimAssistTarget> AimAssistTargets = IAimTargetInterface::Execute_GetAimAssistTargets(Hit.GetActor());

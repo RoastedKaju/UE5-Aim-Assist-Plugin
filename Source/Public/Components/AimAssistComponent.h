@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "GenericTeamAgentInterface.h"
 #include "AimAssistComponent.generated.h"
 
 class APlayerController;
@@ -93,11 +94,18 @@ protected:
 	FVector2D OffsetFromCenter;
 
 	/** Collision query */
-	UPROPERTY(EditDefaultsOnly, Category = "AimAssist", meta = (EditCondition = "bAimAssistEnabled"))
+	UPROPERTY(EditDefaultsOnly, Category = "AimAssist|Filter", meta = (EditCondition = "bAimAssistEnabled"))
 	TArray<TEnumAsByte<ECollisionChannel>> ObjectTypesToQuery;
 
 	// Container for collision object types
 	FCollisionObjectQueryParams ObjectQueryParams;
+
+	/** Team Id query */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AimAssist|Filter", meta = (EditCondition = "bAimAssistEnabled"))
+	bool bQueryForTeams = false;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "AimAssist|Filter", meta = (EditCondition = "bAimAssistEnabled && bQueryForTeams"))
+	TArray<FGenericTeamId> TeamsToQuery;
 
 	/** Friction section */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Friction", meta = (EditCondition = "bAimAssistEnabled"))
