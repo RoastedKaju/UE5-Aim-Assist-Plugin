@@ -7,6 +7,7 @@
 #include "Interfaces/AimTargetInterface.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Types/AimAssistData.h"
+#include "GameFramework/Pawn.h"
 
 // Sets default values for this component's properties
 UAimAssistComponent::UAimAssistComponent()
@@ -27,7 +28,7 @@ UAimAssistComponent::UAimAssistComponent()
 	MagnetismRadius = 45.0f;
 	CurrentAimMagnetism = 0.0f;
 
-	bShowVisibilityCheckLines = false;
+	bShowDebug = false;
 }
 
 // Called when the game starts
@@ -57,11 +58,14 @@ void UAimAssistComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 	// Ensure that controller is valid all the time and is locally controlled.
-	if (!IsValid(PlayerController) || !PlayerController->IsLocalController())
+	if (!IsValid(PlayerController) || !PlayerController->IsLocalController() || !IsValid(PlayerCameraManager))
 		return;
 
 	// Clear the pervious best target data
 	BestTargetData = FAimTargetData{};
+	// Reset the friction and magnetism values
+	CurrentAimFriction = 0.0f;
+	CurrentAimMagnetism = 0.0f;
 
 	// Get list of valid targets
 	const TArray<FAimAssistTarget> ValidTargetList = GetValidTargets();
@@ -69,7 +73,6 @@ void UAimAssistComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 	if (!ValidTargetList.IsEmpty())
 	{
 		// find the closest target
-		FAimTargetData TempData;
 		FindBestFrontFacingTarget(ValidTargetList, BestTargetData);
 
 		if (IsValid(BestTargetData.Component))
@@ -137,14 +140,28 @@ TArray<FAimAssistTarget> UAimAssistComponent::GetValidTargets()
 
 		if (bQueryForTeams)
 		{
-			// Check if the hit actor has team identity component
-			const auto TeamIdComp = Hit.GetActor()->GetComponentByClass<UTeamIdentityComponent>();
-			if (!IsValid(TeamIdComp))
-				continue;
+			if (bGetTeamFromNativeInterface)
+			{
+				const auto TeamInterface = Cast<IGenericTeamAgentInterface>(Hit.GetActor());
+				if (!TeamInterface)
+					continue;
+				
+				// compare
+				const auto TeamId = TeamInterface->GetGenericTeamId();
+				if (!TeamsToQuery.Contains(TeamId))
+					continue;
+			}
+			else
+			{
+				// Check if the hit actor has team identity component
+				const auto TeamIdComp = Hit.GetActor()->GetComponentByClass<UTeamIdentityComponent>();
+				if (!IsValid(TeamIdComp))
+					continue;
 
-			const auto TeamId = TeamIdComp->GetGenericTeamId();
-			if (!TeamsToQuery.Contains(TeamId))
-				continue;
+				const auto TeamId = TeamIdComp->GetGenericTeamId();
+				if (!TeamsToQuery.Contains(TeamId))
+					continue;
+			}
 		}
 
 		// Get all the hit assistance targets on actor
@@ -179,7 +196,7 @@ TArray<FAimAssistTarget> UAimAssistComponent::GetValidTargets()
 							TargetData.Sockets.Add(Socket); // Add socket to list
 						else
 							DebugTraceColor = FColor::Red;
-						if (bShowVisibilityCheckLines)
+						if (bShowDebug)
 							DrawDebugLine(GetWorld(), StartLoc, OutVisibilityHit.Location, DebugTraceColor, false, 0.0f);
 					}
 				}

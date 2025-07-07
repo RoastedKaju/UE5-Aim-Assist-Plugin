@@ -105,6 +105,9 @@ protected:
 	bool bQueryForTeams = false;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "AimAssist|Filter", meta = (EditCondition = "bAimAssistEnabled && bQueryForTeams"))
+	bool bGetTeamFromNativeInterface = false;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "AimAssist|Filter", meta = (EditCondition = "bAimAssistEnabled && bQueryForTeams"))
 	TArray<FGenericTeamId> TeamsToQuery;
 
 	/** Friction section */
@@ -135,5 +138,5 @@ protected:
 	float CurrentAimMagnetism;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Debug")
-	bool bShowVisibilityCheckLines;
+	bool bShowDebug;
 };
