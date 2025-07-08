@@ -14,6 +14,7 @@ UAimAssistComponent::UAimAssistComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
 	bAimAssistEnabled = false;
+	bUseOnlyOnGamepad = true;
 
 	OverlapBoxHalfSize = FVector(50.0f, 500.0f, 500.0f);
 	OverlapRange = 1000.0f;
@@ -50,6 +51,11 @@ void UAimAssistComponent::BeginPlay()
 	{
 		ObjectQueryParams.AddObjectTypesToQuery(ObjectType);
 	}
+
+	// Bind the function when hardware input device changes
+	const auto& InputDeviceSubsystem = GEngine->GetEngineSubsystem<UInputDeviceSubsystem>();
+	check(InputDeviceSubsystem);
+	InputDeviceSubsystem->OnInputHardwareDeviceChanged.AddDynamic(this, &UAimAssistComponent::OnHardwareDeviceChanged);
 }
 
 // Called every frame
@@ -66,6 +72,13 @@ void UAimAssistComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 	// Reset the friction and magnetism values
 	CurrentAimFriction = 0.0f;
 	CurrentAimMagnetism = 0.0f;
+
+	// If Aim assist should only work with game pad? Check if the game pad is in use
+	if (bUseOnlyOnGamepad)
+	{
+		if (IsUsingGamepad() == false)
+			return;
+	}
 
 	// Get list of valid targets
 	const TArray<FAimAssistTarget> ValidTargetList = GetValidTargets();
@@ -102,6 +115,17 @@ void UAimAssistComponent::EnableAimAssist(bool bEnabled)
 {
 	SetComponentTickEnabled(bEnabled);
 	bAimAssistEnabled = bEnabled;
+}
+
+bool UAimAssistComponent::IsUsingGamepad()
+{
+	return LastInputDevice == EHardwareDevicePrimaryType::Gamepad;
+}
+
+void UAimAssistComponent::OnHardwareDeviceChanged(const FPlatformUserId UserId, const FInputDeviceId DeviceId)
+{
+	auto InputDeviceSubsystem = GEngine->GetEngineSubsystem<UInputDeviceSubsystem>();
+	LastInputDevice = InputDeviceSubsystem->GetInputDeviceHardwareIdentifier(DeviceId).PrimaryDeviceType;
 }
 
 TArray<FAimAssistTarget> UAimAssistComponent::GetValidTargets()
@@ -145,7 +169,7 @@ TArray<FAimAssistTarget> UAimAssistComponent::GetValidTargets()
 				const auto TeamInterface = Cast<IGenericTeamAgentInterface>(Hit.GetActor());
 				if (!TeamInterface)
 					continue;
-				
+
 				// compare
 				const auto TeamId = TeamInterface->GetGenericTeamId();
 				if (!TeamsToQuery.Contains(TeamId))
@@ -170,6 +194,9 @@ TArray<FAimAssistTarget> UAimAssistComponent::GetValidTargets()
 		// Loop over the assist targets
 		for (const auto& AimAssistTarget : AimAssistTargets)
 		{
+			if (AimAssistTarget.Sockets.IsEmpty())
+				continue;
+
 			// Build target data
 			FAimAssistTarget TargetData;
 			TargetData.Component = AimAssistTarget.Component;

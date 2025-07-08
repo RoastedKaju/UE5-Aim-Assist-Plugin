@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "GenericTeamAgentInterface.h"
+#include "GameFramework/InputDeviceSubsystem.h"
 #include "AimAssistComponent.generated.h"
 
 class APlayerController;
@@ -44,24 +45,41 @@ public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
+	/** Enable aim assist */
 	UFUNCTION(BlueprintCallable, Category = "AimAssist")
 	void EnableAimAssist(bool bEnabled);
 
+	UFUNCTION(BlueprintPure, Category = "AimAssist")
+	bool IsUsingGamepad();
+
+	UFUNCTION()
+	void OnHardwareDeviceChanged(const FPlatformUserId UserId, const FInputDeviceId DeviceId);
+
+	/** Gets all the valid target sockets depending on Query object type and team identifier component */
 	UFUNCTION(BlueprintCallable, Category = "AimAssist")
 	TArray<FAimAssistTarget> GetValidTargets();
 
+	/**
+	* @brief Checks if the provided world location is intersecting with the on screen circle
+	*/
 	UFUNCTION(BlueprintCallable, Category = "AimAssist")
 	bool IsTargetWithinScreenCircle(const FVector& TargetLoc, const FVector2D& ScreenPoint, const float Radius);
 
+	// The the closest and near to the center target from players POV
 	UFUNCTION(BlueprintCallable, Category = "AimAssist")
 	void FindBestFrontFacingTarget(const TArray<FAimAssistTarget>& Targets, FAimTargetData& OutTargetData);
 
+	/**
+	* @return returns the center of screen
+	*/
 	UFUNCTION(BlueprintPure, Category = "AimAssist")
 	FVector2D GetViewportCenter();
 
+	// Calculate the friction factor depending on the distance form the center of circle
 	UFUNCTION(BlueprintCallable, Category = "AimAssist|Friction")
 	void CalculateFriction(FAimTargetData Target, float DistanceSqFromOrigin);
 
+	// Converts the friction factor into easily useable friction scale (1 - FrictionFactor)
 	UFUNCTION(BlueprintPure, Category = "AimAssist|Friction")
 	float GetCurrentAimFriction();
 
@@ -80,6 +98,12 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "AimAssist")
 	bool bAimAssistEnabled;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist")
+	bool bUseOnlyOnGamepad;
+
+	UPROPERTY()
+	EHardwareDevicePrimaryType LastInputDevice;
 	
 	UPROPERTY(BlueprintReadOnly, Category = "AimAssist")
 	FAimTargetData BestTargetData;
