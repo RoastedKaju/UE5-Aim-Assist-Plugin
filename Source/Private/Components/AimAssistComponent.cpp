@@ -115,6 +115,10 @@ void UAimAssistComponent::EnableAimAssist(bool bEnabled)
 {
 	SetComponentTickEnabled(bEnabled);
 	bAimAssistEnabled = bEnabled;
+
+	// Reset the values
+	CurrentAimFriction = 0.0f;
+	CurrentAimMagnetism = 0.0f;
 }
 
 bool UAimAssistComponent::IsUsingGamepad()

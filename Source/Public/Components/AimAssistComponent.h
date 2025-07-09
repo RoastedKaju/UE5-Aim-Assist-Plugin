@@ -96,7 +96,7 @@ protected:
 	UPROPERTY(BlueprintReadWrite, Category = "AimAssist")
 	TObjectPtr<APlayerCameraManager> PlayerCameraManager;
 
-	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "AimAssist")
+	UPROPERTY(BlueprintReadOnly, Category = "AimAssist")
 	bool bAimAssistEnabled;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist")
@@ -108,40 +108,40 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "AimAssist")
 	FAimTargetData BestTargetData;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist", meta = (EditCondition = "bAimAssistEnabled"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist")
 	FVector OverlapBoxHalfSize;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist", meta = (EditCondition = "bAimAssistEnabled", ClampMin = "25.0"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist", meta = (ClampMin = "25.0"))
 	float OverlapRange;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist", meta = (EditCondition = "bAimAssistEnabled"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist")
 	FVector2D OffsetFromCenter;
 
 	/** Collision query */
-	UPROPERTY(EditDefaultsOnly, Category = "AimAssist|Filter", meta = (EditCondition = "bAimAssistEnabled"))
+	UPROPERTY(EditDefaultsOnly, Category = "AimAssist|Filter")
 	TArray<TEnumAsByte<ECollisionChannel>> ObjectTypesToQuery;
 
 	// Container for collision object types
 	FCollisionObjectQueryParams ObjectQueryParams;
 
 	/** Team Id query */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AimAssist|Filter", meta = (EditCondition = "bAimAssistEnabled"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AimAssist|Filter")
 	bool bQueryForTeams = false;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "AimAssist|Filter", meta = (EditCondition = "bAimAssistEnabled && bQueryForTeams"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "AimAssist|Filter", meta = (EditCondition = "bQueryForTeams"))
 	bool bGetTeamFromNativeInterface = false;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "AimAssist|Filter", meta = (EditCondition = "bAimAssistEnabled && bQueryForTeams"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "AimAssist|Filter", meta = (EditCondition = "bQueryForTeams"))
 	TArray<FGenericTeamId> TeamsToQuery;
 
 	/** Friction section */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Friction", meta = (EditCondition = "bAimAssistEnabled"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Friction")
 	bool bEnableFriction;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Friction", meta = (EditCondition = "bAimAssistEnabled && bEnableFriction", ClampMin = "10.0"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Friction", meta = (EditCondition = "bEnableFriction", ClampMin = "10.0"))
 	float FrictionRadius;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Friction", meta = (EditCondition = "bAimAssistEnabled && bEnableFriction"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Friction", meta = (EditCondition = "bEnableFriction"))
 	TObjectPtr<UCurveFloat> FrictionCurve;
 
 	// Aim friction
@@ -149,13 +149,13 @@ protected:
 	float CurrentAimFriction;
 
 	/** Magnetism section */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Magnetism", meta = (EditCondition = "bAimAssistEnabled"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Magnetism")
 	bool bEnableMagnetism;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Magnetism", meta = (EditCondition = "bAimAssistEnabled && bEnableMagnetism", ClampMin = "10.0"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Magnetism", meta = (EditCondition = "bEnableMagnetism", ClampMin = "10.0"))
 	float MagnetismRadius;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Magnetism", meta = (EditCondition = "bAimAssistEnabled && bEnableMagnetism"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Magnetism", meta = (EditCondition = "bEnableMagnetism"))
 	TObjectPtr<UCurveFloat> MagnetismCurve;
 
 	UPROPERTY(BlueprintReadOnly, Category = "AimAssist|Magnetism")
