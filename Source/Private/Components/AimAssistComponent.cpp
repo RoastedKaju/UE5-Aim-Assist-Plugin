@@ -177,14 +177,9 @@ TArray<FAimAssistTarget> UAimAssistComponent::GetValidTargets()
 		{
 			if (bGetTeamFromNativeInterface)
 			{
-				const auto TeamInterface = Cast<IGenericTeamAgentInterface>(Hit.GetActor());
-				if (!TeamInterface)
-					continue;
-
 				// compare
-				const auto TeamId = TeamInterface->GetGenericTeamId();
-				if (!TeamsToQuery.Contains(TeamId))
-					continue;
+				const auto TeamId = IAimTargetInterface::Execute_GetTeam(Hit.GetActor());
+				if (!TeamsToQuery.Contains(TeamId)) { continue; }
 			}
 			else
 			{

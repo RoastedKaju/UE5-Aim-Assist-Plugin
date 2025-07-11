@@ -29,7 +29,7 @@ struct FAimTargetData
 	FName SocketName;
 
 	UPROPERTY(BlueprintReadWrite, Category = "AimTargetData")
-	FVector SocketLocation;
+	FVector SocketLocation = FVector::ZeroVector;
 };
 
 /**

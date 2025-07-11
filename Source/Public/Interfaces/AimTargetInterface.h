@@ -26,6 +26,9 @@ class IAimTargetInterface
 	GENERATED_BODY()
 
 public:
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category= "AimAssist")
+	FGenericTeamId GetTeam() const;
+	
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "AimAssist")
 	TArray<FAimAssistTarget> GetAimAssistTargets() const;
 };
