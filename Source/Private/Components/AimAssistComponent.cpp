@@ -15,18 +15,22 @@ UAimAssistComponent::UAimAssistComponent()
 	PrimaryComponentTick.bCanEverTick = true;
 	bAimAssistEnabled = false;
 	bUseOnlyOnGamepad = true;
+	LastInputDevice = EHardwareDevicePrimaryType::Unspecified;
 
-	OverlapBoxHalfSize = FVector(50.0f, 500.0f, 500.0f);
-	OverlapRange = 1000.0f;
+	OverlapBoxHalfSize = FVector(500.0f, 1000.0f, 1000.0f);
+	OverlapRange = 2500.0f;
 	OffsetFromCenter = FVector2D::ZeroVector;
-	ObjectTypesToQuery = { ECC_WorldDynamic, ECC_Pawn };
+	ObjectTypesToQuery = {ECC_WorldDynamic, ECC_Pawn};
+	bQueryForTeams = true;
+	bGetTeamFromNativeInterface = false;
+	TeamsToQuery = {FGenericTeamId::NoTeam};
 
 	bEnableFriction = true;
-	FrictionRadius = 100.0f;
+	FrictionRadius = 200.0f;
 	CurrentAimFriction = 0.0f;
 
-	bEnableMagnetism = false;
-	MagnetismRadius = 45.0f;
+	bEnableMagnetism = true;
+	MagnetismRadius = 75.0f;
 	CurrentAimMagnetism = 0.0f;
 
 	bShowDebug = false;
@@ -46,7 +50,7 @@ void UAimAssistComponent::BeginPlay()
 	PlayerCameraManager = PlayerController->PlayerCameraManager;
 	check(PlayerCameraManager);
 
-	// Setup the object query params
+	// Set up the object query params
 	for (const auto& ObjectType : ObjectTypesToQuery)
 	{
 		ObjectQueryParams.AddObjectTypesToQuery(ObjectType);
@@ -59,7 +63,8 @@ void UAimAssistComponent::BeginPlay()
 }
 
 // Called every frame
-void UAimAssistComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+void UAimAssistComponent::TickComponent(float DeltaTime, ELevelTick TickType,
+                                        FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
@@ -67,7 +72,7 @@ void UAimAssistComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 	if (!IsValid(PlayerController) || !PlayerController->IsLocalController() || !IsValid(PlayerCameraManager))
 		return;
 
-	// Clear the pervious best target data
+	// Clear the previous best target data
 	BestTargetData = FAimTargetData{};
 	// Reset the friction and magnetism values
 	CurrentAimFriction = 0.0f;
@@ -95,8 +100,10 @@ void UAimAssistComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 			FVector2D TargetScreenLoc;
 			if (PlayerController->ProjectWorldLocationToScreen(BestTargetData.SocketLocation, TargetScreenLoc, true))
 			{
-				const float DistanceSq = FVector2D::DistSquared(TargetScreenLoc, (GetViewportCenter() + OffsetFromCenter));
-				const FVector ToTargetDir = (BestTargetData.SocketLocation - PlayerCameraManager->GetCameraLocation()).GetSafeNormal();
+				const float DistanceSq = FVector2D::DistSquared(TargetScreenLoc,
+				                                                (GetViewportCenter() + OffsetFromCenter));
+				const FVector ToTargetDir = (BestTargetData.SocketLocation - PlayerCameraManager->GetCameraLocation()).
+					GetSafeNormal();
 
 				if (bEnableFriction)
 					CalculateFriction(BestTargetData, DistanceSq);
@@ -121,7 +128,7 @@ void UAimAssistComponent::EnableAimAssist(bool bEnabled)
 	CurrentAimMagnetism = 0.0f;
 }
 
-bool UAimAssistComponent::IsUsingGamepad()
+bool UAimAssistComponent::IsUsingGamepad() const
 {
 	return LastInputDevice == EHardwareDevicePrimaryType::Gamepad;
 }
@@ -136,8 +143,8 @@ TArray<FAimAssistTarget> UAimAssistComponent::GetValidTargets()
 {
 	TArray<FAimAssistTarget> ValidTargets;
 
-	// Get the largest radius from all of aim assist components
-	const TArray<float> AimAssistZones{ FrictionRadius, MagnetismRadius };
+	// Get the largest radius from all the aim assist components
+	const TArray AimAssistZones{FrictionRadius, MagnetismRadius};
 	const float LargestAimAssistZone = FMath::Max(AimAssistZones);
 
 	// Screen center
@@ -193,7 +200,8 @@ TArray<FAimAssistTarget> UAimAssistComponent::GetValidTargets()
 		}
 
 		// Get all the hit assistance targets on actor
-		const TArray<FAimAssistTarget> AimAssistTargets = IAimTargetInterface::Execute_GetAimAssistTargets(Hit.GetActor());
+		const TArray<FAimAssistTarget> AimAssistTargets = IAimTargetInterface::Execute_GetAimAssistTargets(
+			Hit.GetActor());
 
 		// Loop over the assist targets
 		for (const auto& AimAssistTarget : AimAssistTargets)
@@ -220,7 +228,8 @@ TArray<FAimAssistTarget> UAimAssistComponent::GetValidTargets()
 					VisibilityQueryParams.bTraceComplex = false;
 					// Debug
 					FColor DebugTraceColor = FColor::Green;
-					if (GetWorld()->LineTraceSingleByChannel(OutVisibilityHit, StartLoc, SocketLoc, ECC_Visibility, VisibilityQueryParams))
+					if (GetWorld()->LineTraceSingleByChannel(OutVisibilityHit, StartLoc, SocketLoc, ECC_Visibility,
+					                                         VisibilityQueryParams))
 					{
 						// Check if the hit component is same as the current aim assist component
 						if (OutVisibilityHit.GetComponent() == AimAssistTarget.Component)
@@ -228,7 +237,8 @@ TArray<FAimAssistTarget> UAimAssistComponent::GetValidTargets()
 						else
 							DebugTraceColor = FColor::Red;
 						if (bShowDebug)
-							DrawDebugLine(GetWorld(), StartLoc, OutVisibilityHit.Location, DebugTraceColor, false, 0.0f);
+							DrawDebugLine(GetWorld(), StartLoc, OutVisibilityHit.Location, DebugTraceColor, false,
+							              0.0f);
 					}
 				}
 			}
@@ -241,7 +251,8 @@ TArray<FAimAssistTarget> UAimAssistComponent::GetValidTargets()
 	return ValidTargets;
 }
 
-bool UAimAssistComponent::IsTargetWithinScreenCircle(const FVector& TargetLoc, const FVector2D& ScreenPoint, const float Radius)
+bool UAimAssistComponent::IsTargetWithinScreenCircle(const FVector& TargetLoc, const FVector2D& ScreenPoint,
+                                                     const float Radius)
 {
 	FVector2D TargetScreenLoc;
 	if (!PlayerController->ProjectWorldLocationToScreen(TargetLoc, TargetScreenLoc, true))
@@ -254,7 +265,8 @@ bool UAimAssistComponent::IsTargetWithinScreenCircle(const FVector& TargetLoc, c
 	return DistanceSq <= FMath::Square(Radius);
 }
 
-void UAimAssistComponent::FindBestFrontFacingTarget(const TArray<FAimAssistTarget>& Targets, FAimTargetData& OutTargetData)
+void UAimAssistComponent::FindBestFrontFacingTarget(const TArray<FAimAssistTarget>& Targets,
+                                                    FAimTargetData& OutTargetData)
 {
 	float BestScore = -FLT_MAX;
 	FAimTargetData BestTarget;
@@ -265,7 +277,6 @@ void UAimAssistComponent::FindBestFrontFacingTarget(const TArray<FAimAssistTarge
 		{
 			const FVector SocketLoc = Target.Component->GetSocketLocation(Socket);
 			const FVector ToTarget = SocketLoc - PlayerCameraManager->GetCameraLocation();
-			const float Distance = ToTarget.SizeSquared();
 			const FVector ToTargetDir = ToTarget.GetSafeNormal();
 
 			// How "in front" the target is
@@ -288,7 +299,7 @@ void UAimAssistComponent::FindBestFrontFacingTarget(const TArray<FAimAssistTarge
 	OutTargetData = BestTarget;
 }
 
-FVector2D UAimAssistComponent::GetViewportCenter()
+FVector2D UAimAssistComponent::GetViewportCenter() const
 {
 	check(PlayerController);
 
@@ -324,7 +335,7 @@ void UAimAssistComponent::CalculateFriction(FAimTargetData Target, float Distanc
 	CurrentAimFriction = 0.0f;
 }
 
-float UAimAssistComponent::GetCurrentAimFriction()
+float UAimAssistComponent::GetCurrentAimFriction() const
 {
 	return 1.0f - FMath::Min(CurrentAimFriction, 0.9f);
 }
@@ -340,7 +351,9 @@ void UAimAssistComponent::CalculateMagnetism(FAimTargetData Target, float Distan
 		// Clamp
 		MagnetismScale = FMath::Clamp(MagnetismScale, 0.0f, 1.0f);
 
-		GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, FString::Printf(TEXT("Magnetism Rate For Active Target : %.2f"), MagnetismScale));
+		GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red,
+		                                 FString::Printf(
+			                                 TEXT("Magnetism Rate For Active Target : %.2f"), MagnetismScale));
 
 		// Get the value from curve
 		float MagnetismCurveValue;
@@ -356,18 +369,19 @@ void UAimAssistComponent::CalculateMagnetism(FAimTargetData Target, float Distan
 	CurrentAimMagnetism = 0.0f;
 }
 
-void UAimAssistComponent::ApplyMagnetism(float DeltaTime, const FVector& TargetLocation, const FVector& TargetDirection)
+void UAimAssistComponent::ApplyMagnetism(const float DeltaTime, const FVector& TargetLocation,
+                                         const FVector& TargetDirection) const
 {
 	if (CurrentAimMagnetism == 0.0f || bEnableMagnetism == false)
 		return;
 
 	// Get current control rotation
-	FRotator CurrentRotation = PlayerController->GetControlRotation();
-	FRotator TargetRotation = TargetDirection.Rotation();
+	const FRotator CurrentRotation = PlayerController->GetControlRotation();
+	const FRotator TargetRotation = TargetDirection.Rotation();
 
-	float RotationSpeed = CurrentAimMagnetism;
+	const float RotationSpeed = CurrentAimMagnetism;
 
-	FRotator NewRotation = FMath::RInterpTo(
+	const FRotator NewRotation = FMath::RInterpTo(
 		CurrentRotation,
 		TargetRotation,
 		DeltaTime,

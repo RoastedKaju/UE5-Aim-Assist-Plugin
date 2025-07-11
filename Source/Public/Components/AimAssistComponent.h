@@ -13,6 +13,10 @@ class APlayerCameraManager;
 class USceneComponent;
 struct FAimAssistTarget;
 
+/**
+ * Container for target data, includes information about target world location,
+ * Socket name and the owning primitive component.
+ */
 USTRUCT(BlueprintType)
 struct FAimTargetData
 {
@@ -28,6 +32,9 @@ struct FAimTargetData
 	FVector SocketLocation;
 };
 
+/**
+ *	Aim assistance component, should be placed on player controller
+ */
 UCLASS(Blueprintable, ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class AIMASSIST_API UAimAssistComponent : public UActorComponent
 {
@@ -45,27 +52,28 @@ public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	/** Enable aim assist */
+	//** Enable aim assist */
 	UFUNCTION(BlueprintCallable, Category = "AimAssist")
 	void EnableAimAssist(bool bEnabled);
 
 	UFUNCTION(BlueprintPure, Category = "AimAssist")
-	bool IsUsingGamepad();
+	bool IsUsingGamepad() const;
 
+	//** Callback function for device changed delegate */
 	UFUNCTION()
 	void OnHardwareDeviceChanged(const FPlatformUserId UserId, const FInputDeviceId DeviceId);
 
-	/** Gets all the valid target sockets depending on Query object type and team identifier component */
+	//** Gets all the valid target sockets depending on Query object type and team identifier component */
 	UFUNCTION(BlueprintCallable, Category = "AimAssist")
 	TArray<FAimAssistTarget> GetValidTargets();
 
 	/**
-	* @brief Checks if the provided world location is intersecting with the on screen circle
+	* @brief Checks if the provided world location is intersecting with the on-screen circle
 	*/
 	UFUNCTION(BlueprintCallable, Category = "AimAssist")
 	bool IsTargetWithinScreenCircle(const FVector& TargetLoc, const FVector2D& ScreenPoint, const float Radius);
 
-	// The the closest and near to the center target from players POV
+	// Find the closest and near to the center target from players POV
 	UFUNCTION(BlueprintCallable, Category = "AimAssist")
 	void FindBestFrontFacingTarget(const TArray<FAimAssistTarget>& Targets, FAimTargetData& OutTargetData);
 
@@ -73,21 +81,21 @@ public:
 	* @return returns the center of screen
 	*/
 	UFUNCTION(BlueprintPure, Category = "AimAssist")
-	FVector2D GetViewportCenter();
+	FVector2D GetViewportCenter() const;
 
 	// Calculate the friction factor depending on the distance form the center of circle
 	UFUNCTION(BlueprintCallable, Category = "AimAssist|Friction")
 	void CalculateFriction(FAimTargetData Target, float DistanceSqFromOrigin);
 
-	// Converts the friction factor into easily useable friction scale (1 - FrictionFactor)
+	// Converts the friction factor into easily usable friction scale (1 - FrictionFactor)
 	UFUNCTION(BlueprintPure, Category = "AimAssist|Friction")
-	float GetCurrentAimFriction();
+	float GetCurrentAimFriction() const;
 
 	UFUNCTION(BlueprintCallable, Category = "AimAssist|Magnetism")
 	void CalculateMagnetism(FAimTargetData Target, float DistanceSqFromOrigin);
 
 	UFUNCTION(BlueprintCallable, Category = "AimAssist|Magnetism")
-	void ApplyMagnetism(float DeltaTime, const FVector& TargetLocation, const FVector& TargetDirection);
+	void ApplyMagnetism(const float DeltaTime, const FVector& TargetLocation, const FVector& TargetDirection) const;
 
 protected:
 	UPROPERTY(BlueprintReadWrite, Category = "AimAssist")
@@ -114,17 +122,18 @@ protected:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist", meta = (ClampMin = "25.0"))
 	float OverlapRange;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist")
+	//** Not yet implemented */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist", meta=(EditCondition = "false"))
 	FVector2D OffsetFromCenter;
 
-	/** Collision query */
+	//** Collision query */
 	UPROPERTY(EditDefaultsOnly, Category = "AimAssist|Filter")
 	TArray<TEnumAsByte<ECollisionChannel>> ObjectTypesToQuery;
 
 	// Container for collision object types
 	FCollisionObjectQueryParams ObjectQueryParams;
 
-	/** Team Id query */
+	//** Team Id query */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AimAssist|Filter")
 	bool bQueryForTeams = false;
 
@@ -134,7 +143,7 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "AimAssist|Filter", meta = (EditCondition = "bQueryForTeams"))
 	TArray<FGenericTeamId> TeamsToQuery;
 
-	/** Friction section */
+	//** Friction section */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Friction")
 	bool bEnableFriction;
 
@@ -148,7 +157,7 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "AimAssist|Friction")
 	float CurrentAimFriction;
 
-	/** Magnetism section */
+	//** Magnetism section */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Magnetism")
 	bool bEnableMagnetism;
 
@@ -160,7 +169,7 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, Category = "AimAssist|Magnetism")
 	float CurrentAimMagnetism;
-
+	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AimAssist|Debug")
 	bool bShowDebug;
 };

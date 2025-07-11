@@ -27,8 +27,5 @@ class IAimTargetInterface
 
 public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "AimAssist")
-	TArray<USceneComponent*> GetAimTargets() const;
-
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "AimAssist")
 	TArray<FAimAssistTarget> GetAimAssistTargets() const;
 };

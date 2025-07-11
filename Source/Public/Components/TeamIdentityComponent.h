@@ -17,12 +17,8 @@ public:
 	// Sets default values for this component's properties
 	UTeamIdentityComponent();
 
-	virtual void SetGenericTeamId(const FGenericTeamId& TeamID) override;
-	virtual FGenericTeamId GetGenericTeamId() const { return Team; }
-
-protected:
-	// Called when the game starts
-	virtual void BeginPlay() override;
+	FORCEINLINE virtual void SetGenericTeamId(const FGenericTeamId& TeamID) override { Team = TeamID; };
+	FORCEINLINE virtual FGenericTeamId GetGenericTeamId() const override { return Team; }
 
 protected:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Team")

@@ -5,8 +5,6 @@
 #include "CoreMinimal.h"
 #include "AimAssistData.generated.h"
 
-UPrimitiveComponent;
-
 USTRUCT(BlueprintType)
 struct AIMASSIST_API FAimAssistTarget
 {
