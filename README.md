@@ -3,6 +3,10 @@
 
 Aim assist plugin for unreal engine, containing actor component for ease of use.  
 
+<p align="center">
+  <img src="docs/banner.jpg"/>
+</p>
+
 ## Features
 
 - Aim Assist component with togglable stickiness and magnetism helpers.  
