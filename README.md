@@ -54,6 +54,10 @@ To get the target locations from potential enemy you need to implement an interf
   <img src="docs/ImplementInterface.jpg"/>
 </p>
 
+### Team Setup
+
+To be able to register targets you must also have a Team identity component attached, Or alternatively you can get the team from the same Target interface as well to return the team of the target.
+
 ### Collision Setup
 
 This depends on what type of query object list you have in your Aim Assist component by default the component will scan for pawns, world dynamic objects.  
