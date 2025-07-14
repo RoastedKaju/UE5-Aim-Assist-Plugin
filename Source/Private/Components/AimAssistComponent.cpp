@@ -22,7 +22,7 @@ UAimAssistComponent::UAimAssistComponent()
 	OffsetFromCenter = FVector2D::ZeroVector;
 	ObjectTypesToQuery = {ECC_WorldDynamic, ECC_Pawn};
 	bQueryForTeams = true;
-	bGetTeamFromNativeInterface = false;
+	bGetTeamFromNativeInterface = true;
 	TeamsToQuery = {FGenericTeamId::NoTeam};
 
 	bEnableFriction = true;

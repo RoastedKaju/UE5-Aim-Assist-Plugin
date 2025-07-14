@@ -135,10 +135,10 @@ protected:
 
 	//** Team Id query */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AimAssist|Filter")
-	bool bQueryForTeams = false;
+	bool bQueryForTeams;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "AimAssist|Filter", meta = (EditCondition = "bQueryForTeams"))
-	bool bGetTeamFromNativeInterface = false;
+	bool bGetTeamFromNativeInterface;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "AimAssist|Filter", meta = (EditCondition = "bQueryForTeams"))
 	TArray<FGenericTeamId> TeamsToQuery;
