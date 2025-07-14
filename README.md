@@ -20,7 +20,7 @@ Friction feature slows down the sensitivity of camera look and turn when the tar
 
 ### Magnetism
 
-Magnetism feature auto corrects the aim to face the center target. It smoothly interpolates the player view.  
+Magnetism feature autocorrects the aim to face the center target. It smoothly interpolates the player view.  
 
 ## Setup
 
@@ -57,6 +57,11 @@ To get the target locations from potential enemy you need to implement an interf
 ### Team Setup
 
 To be able to register targets you must also have a Team identity component attached, Or alternatively you can get the team from the same Target interface as well to return the team of the target.
+
+It is preferred that you use get the team ID from the interface function, For this to work make sure you have ticked the Native Team Interface Option in your Aim Assist Component.  
+<p align="center">
+  <img src="docs/TeamInterface.jpg"/>
+</p>
 
 ### Collision Setup
 
