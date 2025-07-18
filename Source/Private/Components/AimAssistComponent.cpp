@@ -21,6 +21,7 @@ UAimAssistComponent::UAimAssistComponent()
 	OverlapRange = 2500.0f;
 	OffsetFromCenter = FVector2D::ZeroVector;
 	ObjectTypesToQuery = {ECC_WorldDynamic, ECC_Pawn};
+	VisibilityTrace = ECC_Visibility;
 	bQueryForTeams = true;
 	bGetTeamFromNativeInterface = true;
 	TeamsToQuery = {FGenericTeamId::NoTeam};
@@ -223,7 +224,8 @@ TArray<FAimAssistTarget> UAimAssistComponent::GetValidTargets()
 					VisibilityQueryParams.bTraceComplex = false;
 					// Debug
 					FColor DebugTraceColor = FColor::Green;
-					if (GetWorld()->LineTraceSingleByChannel(OutVisibilityHit, StartLoc, SocketLoc, ECC_Visibility,
+					// Visibility trace
+					if (GetWorld()->LineTraceSingleByChannel(OutVisibilityHit, StartLoc, SocketLoc, VisibilityTrace,
 					                                         VisibilityQueryParams))
 					{
 						// Check if the hit component is same as the current aim assist component

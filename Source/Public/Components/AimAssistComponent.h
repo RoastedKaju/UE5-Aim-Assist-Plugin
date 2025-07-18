@@ -130,6 +130,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "AimAssist|Filter")
 	TArray<TEnumAsByte<ECollisionChannel>> ObjectTypesToQuery;
 
+	//* Trace channel for checking visibility */
+	UPROPERTY(EditDefaultsOnly, Category = "AimAssist|Filter")
+	TEnumAsByte<ECollisionChannel> VisibilityTrace;
+
 	// Container for collision object types
 	FCollisionObjectQueryParams ObjectQueryParams;
 
