@@ -57,10 +57,13 @@ void UAimAssistComponent::BeginPlay()
 		ObjectQueryParams.AddObjectTypesToQuery(ObjectType);
 	}
 
-	// Bind the function when hardware input device changes
-	const auto& InputDeviceSubsystem = GEngine->GetEngineSubsystem<UInputDeviceSubsystem>();
-	check(InputDeviceSubsystem);
-	InputDeviceSubsystem->OnInputHardwareDeviceChanged.AddDynamic(this, &UAimAssistComponent::OnHardwareDeviceChanged);
+	if (GetWorld()->GetNetMode() != NM_DedicatedServer)
+	{
+		// Bind the function when hardware input device changes
+		const auto& InputDeviceSubsystem = GEngine->GetEngineSubsystem<UInputDeviceSubsystem>();
+		check(InputDeviceSubsystem);
+		InputDeviceSubsystem->OnInputHardwareDeviceChanged.AddDynamic(this, &UAimAssistComponent::OnHardwareDeviceChanged);
+	}
 }
 
 // Called every frame
