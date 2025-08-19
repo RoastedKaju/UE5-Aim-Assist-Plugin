@@ -99,7 +99,7 @@ void UAimAssistComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 
 		if (IsValid(BestTargetData.Component))
 		{
-			UE_LOG(LogTemp, Log, TEXT("VALID BEST TARGET -> %s"), *BestTargetData.Component->GetName());
+			// UE_LOG(LogTemp, Log, TEXT("VALID BEST TARGET -> %s"), *BestTargetData.Component->GetName());
 
 			FVector2D TargetScreenLoc;
 			if (PlayerController->ProjectWorldLocationToScreen(BestTargetData.SocketLocation, TargetScreenLoc, true))
@@ -351,9 +351,7 @@ void UAimAssistComponent::CalculateMagnetism(FAimTargetData Target, float Distan
 		// Clamp
 		MagnetismScale = FMath::Clamp(MagnetismScale, 0.0f, 1.0f);
 
-		GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red,
-		                                 FString::Printf(
-			                                 TEXT("Magnetism Rate For Active Target : %.2f"), MagnetismScale));
+		// GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, FString::Printf(TEXT("Magnetism Rate For Active Target : %.2f"), MagnetismScale));
 
 		// Get the value from curve
 		float MagnetismCurveValue;
